@@ -547,9 +547,22 @@ export class LeadFormComponent implements OnInit {
 
   // Get full WhatsApp number with country code
   getFullWhatsAppNumber(): string {
-    const countryCode = this.selectedCountryCode;
     const number = this.leadForm.get('whatsappNumber')?.value || '';
-    return countryCode + number;
+    if (!number) {
+      return '';
+    }
+    // Return the number exactly as typed
+    return number;
+  }
+
+  // Get formatted phone number for display
+  getFormattedPhoneDisplay(): string {
+    const phone = this.leadForm.get('phone')?.value || '';
+    if (!phone) {
+      return 'غير محدد';
+    }
+    // Return Canadian phone number with +1 country code
+    return '+1 ' + phone;
   }
 
   // Get formatted WhatsApp number for display
@@ -557,9 +570,10 @@ export class LeadFormComponent implements OnInit {
     const countryCode = this.selectedCountryCode;
     const number = this.leadForm.get('whatsappNumber')?.value || '';
     if (!number) {
-      return 'رقم الهاتف';
+      return 'غير محدد';
     }
-    return countryCode + number;
+    // Return the number with country code
+    return countryCode + ' ' + number;
   }
 
   // Format phone number for submission (ensure it's in +1 (xxx) xxx-xxxx format)
