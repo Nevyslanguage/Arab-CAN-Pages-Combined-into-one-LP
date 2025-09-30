@@ -25,7 +25,7 @@ export class LeadFormComponent implements OnInit {
   countrySearchTerm = '';
   filteredCountries: any[] = [];
 
-  // State dropdown properties
+  // Province dropdown properties
   showStateDropdown = false;
   stateSearchTerm = '';
   filteredStates: any[] = [];
@@ -36,59 +36,21 @@ export class LeadFormComponent implements OnInit {
   // Verification page
   showVerificationPage: boolean = false;
 
-  // US States data
+  // Canadian Provinces data
   usStates = [
-    { value: 'Alabama', label: 'Alabama' },
-    { value: 'Alaska', label: 'Alaska' },
-    { value: 'Arizona', label: 'Arizona' },
-    { value: 'Arkansas', label: 'Arkansas' },
-    { value: 'California', label: 'California' },
-    { value: 'Colorado', label: 'Colorado' },
-    { value: 'Connecticut', label: 'Connecticut' },
-    { value: 'Delaware', label: 'Delaware' },
-    { value: 'Florida', label: 'Florida' },
-    { value: 'Georgia', label: 'Georgia' },
-    { value: 'Hawaii', label: 'Hawaii' },
-    { value: 'Idaho', label: 'Idaho' },
-    { value: 'Illinois', label: 'Illinois' },
-    { value: 'Indiana', label: 'Indiana' },
-    { value: 'Iowa', label: 'Iowa' },
-    { value: 'Kansas', label: 'Kansas' },
-    { value: 'Kentucky', label: 'Kentucky' },
-    { value: 'Louisiana', label: 'Louisiana' },
-    { value: 'Maine', label: 'Maine' },
-    { value: 'Maryland', label: 'Maryland' },
-    { value: 'Massachusetts', label: 'Massachusetts' },
-    { value: 'Michigan', label: 'Michigan' },
-    { value: 'Minnesota', label: 'Minnesota' },
-    { value: 'Mississippi', label: 'Mississippi' },
-    { value: 'Missouri', label: 'Missouri' },
-    { value: 'Montana', label: 'Montana' },
-    { value: 'Nebraska', label: 'Nebraska' },
-    { value: 'Nevada', label: 'Nevada' },
-    { value: 'New Hampshire', label: 'New Hampshire' },
-    { value: 'New Jersey', label: 'New Jersey' },
-    { value: 'New Mexico', label: 'New Mexico' },
-    { value: 'New York', label: 'New York' },
-    { value: 'North Carolina', label: 'North Carolina' },
-    { value: 'North Dakota', label: 'North Dakota' },
-    { value: 'Ohio', label: 'Ohio' },
-    { value: 'Oklahoma', label: 'Oklahoma' },
-    { value: 'Oregon', label: 'Oregon' },
-    { value: 'Pennsylvania', label: 'Pennsylvania' },
-    { value: 'Rhode Island', label: 'Rhode Island' },
-    { value: 'South Carolina', label: 'South Carolina' },
-    { value: 'South Dakota', label: 'South Dakota' },
-    { value: 'Tennessee', label: 'Tennessee' },
-    { value: 'Texas', label: 'Texas' },
-    { value: 'Utah', label: 'Utah' },
-    { value: 'Vermont', label: 'Vermont' },
-    { value: 'Virginia', label: 'Virginia' },
-    { value: 'Washington', label: 'Washington' },
-    { value: 'West Virginia', label: 'West Virginia' },
-    { value: 'Wisconsin', label: 'Wisconsin' },
-    { value: 'Wyoming', label: 'Wyoming' },
-    { value: 'District of Columbia', label: 'District of Columbia' }
+    { value: 'Alberta', label: 'Alberta' },
+    { value: 'British Columbia', label: 'British Columbia' },
+    { value: 'Manitoba', label: 'Manitoba' },
+    { value: 'New Brunswick', label: 'New Brunswick' },
+    { value: 'Newfoundland and Labrador', label: 'Newfoundland and Labrador' },
+    { value: 'Northwest Territories', label: 'Northwest Territories' },
+    { value: 'Nova Scotia', label: 'Nova Scotia' },
+    { value: 'Nunavut', label: 'Nunavut' },
+    { value: 'Ontario', label: 'Ontario' },
+    { value: 'Prince Edward Island', label: 'Prince Edward Island' },
+    { value: 'Quebec', label: 'Quebec' },
+    { value: 'Saskatchewan', label: 'Saskatchewan' },
+    { value: 'Yukon', label: 'Yukon' }
   ];
 
   timeSlots = {
@@ -133,7 +95,7 @@ export class LeadFormComponent implements OnInit {
       availability: ['', Validators.required],
       specificTimeSlot: ['', Validators.required],
       name: ['', Validators.required],
-      phone: ['', [Validators.required, this.usPhoneValidator]],
+      phone: ['', [Validators.required, this.canadianPhoneValidator]],
       whatsappSame: ['', Validators.required],
       whatsappNumber: [''],
       email: ['', [Validators.required, Validators.email, this.emailValidator]],
@@ -254,7 +216,8 @@ export class LeadFormComponent implements OnInit {
     }
     
     // Your actual Zapier webhook URL
-    const zapierWebhookUrl = 'https://hooks.zapier.com/hooks/catch/4630879/u1dshm2/';
+    // const zapierWebhookUrl = 'https://hooks.zapier.com/hooks/catch/4630879/u1dshm2/';
+    const zapierWebhookUrl = 'https://hooks.zapier.com/hooks/catch/4630879/umnpnzt/';
     
     try {
       // Create URL parameters for the webhook (matching successful pattern)
@@ -443,8 +406,8 @@ export class LeadFormComponent implements OnInit {
     return null; // Valid email
   }
 
-  // US phone number validator
-  usPhoneValidator(control: any) {
+  // Canadian phone number validator
+  canadianPhoneValidator(control: any) {
     if (!control.value) {
       return null;
     }
@@ -452,16 +415,16 @@ export class LeadFormComponent implements OnInit {
     // Remove all non-digit characters
     const phoneNumber = control.value.replace(/\D/g, '');
     
-    // US phone numbers should be 10 digits (without country code)
+    // Canadian phone numbers should be 10 digits (without country code)
     if (phoneNumber.length === 10) {
-      // Check if it starts with valid US area codes (2-9 for first digit, 0-9 for second and third)
+      // Check if it starts with valid Canadian area codes (2-9 for first digit, 0-9 for second and third)
       const areaCode = phoneNumber.substring(0, 3);
       const firstDigit = areaCode.charAt(0);
       
-      // US area codes: first digit must be 2-9, second and third can be 0-9
+      // Canadian area codes: first digit must be 2-9, second and third can be 0-9
       // But cannot be 000, 111, 222, etc. (though some are valid, we'll be more lenient)
       if (firstDigit >= '2' && firstDigit <= '9') {
-        return null; // Valid US phone number
+        return null; // Valid Canadian phone number
       }
     }
     
@@ -472,7 +435,7 @@ export class LeadFormComponent implements OnInit {
   formatPhoneNumber(event: any) {
     let value = event.target.value.replace(/\D/g, '');
     
-    // Limit to 10 digits (US phone number without country code)
+    // Limit to 10 digits (Canadian phone number without country code)
     if (value.length > 10) {
       value = value.substring(0, 10);
     }
@@ -708,7 +671,7 @@ export class LeadFormComponent implements OnInit {
     console.log('Country code changed to:', this.selectedCountryCode);
   }
 
-  // State dropdown methods
+  // Province dropdown methods
   toggleStateDropdown() {
     this.showStateDropdown = !this.showStateDropdown;
     if (this.showStateDropdown) {
@@ -791,7 +754,7 @@ export class LeadFormComponent implements OnInit {
         errors.push('يرجى إدخال بريد إلكتروني صحيح');
       }
       if (field.errors?.['invalidUSPhone']) {
-        errors.push('يرجى إدخال رقم هاتف أمريكي صحيح');
+        errors.push('يرجى إدخال رقم هاتف كندي صحيح');
       }
     }
     
