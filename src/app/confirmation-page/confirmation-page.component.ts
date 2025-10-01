@@ -494,11 +494,8 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
   // Send partial form data when user closes page/tab
   private sendPartialFormData(trigger: string) {
-    // Only send if user has started filling the form
-    if (!this.formStarted) {
-      console.log('📝 No form interaction detected, skipping partial form data');
-      return;
-    }
+    // Always send analytics data, even if user didn't start the form
+    // This ensures we capture session data for all users
 
     // Calculate form interaction time
     let formInteractionTime = 0;
@@ -598,12 +595,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     zapierData.description = this.formatPartialFormDataForDescription(zapierData, events, trigger);
 
     // Console logging for debugging
-    console.log('📊 PARTIAL FORM DATA SENT (Page Unload):');
+    console.log('📊 ANALYTICS DATA SENT (Page Unload):');
     console.log('Trigger:', trigger);
     console.log('Form Started:', this.formStarted);
     console.log('Form Submitted:', this.formSubmitted);
     console.log('Appointment Status:', appointmentStatus);
     console.log('Selected Choice:', this.selectedChoice);
+    console.log('Total Session Time:', Math.round((Date.now() - this.sessionStartTime) / 1000), 'seconds');
     console.log('Cancellation Reasons:', zapierData.cancellation_reasons);
     console.log('Subscription Preference:', zapierData.subscription_preference);
     console.log('Preferred Start Time:', zapierData.preferred_start_time);
