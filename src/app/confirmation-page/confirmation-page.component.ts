@@ -538,7 +538,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // If no choice or any other value, it remains 'no_response'
 
     // Prepare Zapier webhook data for lead update
-    const zapierData = {
+    const zapierData: any = {
       // Lead identification (from previous form)
       lead_email: this.urlParams.email,
       lead_name: this.urlParams.name,
@@ -573,6 +573,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       form_submitted: this.formSubmitted,
       form_interaction_time: this.formStarted && this.formStartTime > 0 ? Math.round((Date.now() - this.formStartTime) / 1000) : 0
     };
+
+    // Add description after zapierData is fully created
+    zapierData.description = this.formatTrackingDataForDescription(zapierData, events, trigger);
 
     // Console logging for debugging with better formatting
     console.log('📊 TRACKING DATA SENT:');
@@ -692,7 +695,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // Log the data being sent for debugging
     console.log('📤 Attempting to send data to Zapier:', data);
     
-    // Send data to Zapier webhook
+    // Send data to Zapier webhook with proper description formatting
     this.sendToZapierWebhook(webhookUrl, data);
   }
 
@@ -701,15 +704,56 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     
     // Send data to Zapier webhook as GET with query parameters (CORS-friendly)
     const params = new URLSearchParams();
-    Object.keys(data).forEach(key => {
-      if (data[key] !== null && data[key] !== undefined) {
-        if (typeof data[key] === 'object') {
-          params.set(key, JSON.stringify(data[key]));
-        } else {
-          params.set(key, data[key].toString());
-        }
-      }
-    });
+    
+    // Basic lead information
+    params.set('first_name', data.lead_name || 'Prospect');
+    params.set('last_name', 'Nevys');
+    params.set('company', 'Nevy\'s Language Prospect');
+    params.set('lead_source', 'Website Confirmation Page');
+    params.set('status', 'New');
+    
+    // Lead identification
+    if (data.lead_email) params.set('email', data.lead_email);
+    if (data.lead_name) params.set('name', data.lead_name);
+    
+    // Campaign tracking data
+    if (data.campaign_name) params.set('campaign_name', data.campaign_name);
+    if (data.adset_name) params.set('adset_name', data.adset_name);
+    if (data.ad_name) params.set('ad_name', data.ad_name);
+    if (data.fb_click_id) params.set('fb_click_id', data.fb_click_id);
+    
+    // Confirmation page data
+    if (data.confirmation_choice) params.set('response_type', data.confirmation_choice);
+    if (data.appointment_status) params.set('appointment_status', data.appointment_status);
+    if (data.cancellation_reasons) params.set('cancel_reasons', Array.isArray(data.cancellation_reasons) ? data.cancellation_reasons.join(', ') : data.cancellation_reasons);
+    if (data.subscription_preference) params.set('subscription_preference', data.subscription_preference);
+    if (data.preferred_start_time) params.set('preferred_start_time', data.preferred_start_time);
+    if (data.payment_access) params.set('payment_readiness', data.payment_access);
+    
+    // Session tracking data
+    if (data.session_id) params.set('session_id', data.session_id);
+    if (data.trigger) params.set('trigger', data.trigger);
+    if (data.timestamp) params.set('timestamp', data.timestamp);
+    if (data.total_session_time) params.set('total_session_time', data.total_session_time.toString());
+    if (data.form_started !== undefined) params.set('form_started', data.form_started.toString());
+    if (data.form_submitted !== undefined) params.set('form_submitted', data.form_submitted.toString());
+    if (data.form_interaction_time) params.set('form_interaction_time', data.form_interaction_time.toString());
+    
+    // Events data (convert to JSON string for URL parameter)
+    if (data.events) {
+      params.set('events', JSON.stringify(data.events));
+    }
+    
+    // Additional metadata
+    params.set('submission_date', new Date().toISOString());
+    params.set('source_url', window.location.href);
+    if (data.user_agent) params.set('user_agent', data.user_agent);
+    if (data.page_url) params.set('page_url', data.page_url);
+    
+    // Formatted description for Salesforce (this is the key fix!)
+    if (data.description) {
+      params.set('description', data.description);
+    }
     
     fetch(`${webhookUrl}?${params.toString()}`, {
       method: 'GET',
@@ -729,6 +773,115 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     .catch(error => {
       console.error('❌ Error sending to Zapier:', error);
     });
+  }
+
+  // Format tracking data into a readable description for Salesforce
+  private formatTrackingDataForDescription(zapierData: any, events: any, trigger: string): string {
+    let description = `Confirmation Page Analytics - ${trigger}\n\n`;
+    
+    // Lead information
+    if (zapierData.lead_name || zapierData.lead_email) {
+      description += `Lead Information:\n`;
+      if (zapierData.lead_name) {
+        description += `Name: ${zapierData.lead_name}\n`;
+      }
+      if (zapierData.lead_email) {
+        description += `Email: ${zapierData.lead_email}\n`;
+      }
+      description += `\n`;
+    }
+    
+    // Confirmation page responses
+    if (zapierData.confirmation_choice) {
+      description += `User Choice: ${zapierData.confirmation_choice}\n`;
+    }
+    
+    if (zapierData.appointment_status) {
+      description += `Appointment Status: ${zapierData.appointment_status}\n`;
+    }
+    
+    if (zapierData.cancellation_reasons && zapierData.cancellation_reasons.length > 0) {
+      description += `Cancellation Reasons: ${zapierData.cancellation_reasons.join(', ')}\n`;
+    }
+    
+    if (zapierData.subscription_preference) {
+      description += `Subscription Preference: ${zapierData.subscription_preference}\n`;
+    }
+    
+    if (zapierData.preferred_start_time) {
+      description += `Preferred Start Time: ${zapierData.preferred_start_time}\n`;
+    }
+    
+    if (zapierData.payment_access) {
+      description += `Payment Access: ${zapierData.payment_access}\n`;
+    }
+    
+    // Session analytics
+    description += `\nSession Analytics:\n`;
+    description += `Session ID: ${zapierData.session_id}\n`;
+    description += `Trigger: ${zapierData.trigger}\n`;
+    description += `Total Session Time: ${this.formatTime(zapierData.total_session_time)}\n`;
+    description += `Form Started: ${zapierData.form_started}\n`;
+    description += `Form Submitted: ${zapierData.form_submitted}\n`;
+    description += `Form Interaction Time: ${this.formatTime(zapierData.form_interaction_time)}\n`;
+    
+    // Section time analytics
+    description += `\nSection Time Analytics:\n`;
+    Object.keys(events).forEach(key => {
+      if (key.startsWith('session_duration_')) {
+        const readableKey = this.getReadableEventName(key);
+        const value = events[key];
+        description += `• ${readableKey}: ${this.formatTime(value)}\n`;
+      }
+    });
+    
+    // Idle time
+    if (events.session_idle_time_duration) {
+      description += `• Total Idle Time: ${this.formatTime(events.session_idle_time_duration)}\n`;
+    }
+    
+    // Campaign tracking
+    if (zapierData.campaign_name || zapierData.adset_name || zapierData.ad_name) {
+      description += `\nCampaign Tracking:\n`;
+      if (zapierData.campaign_name) {
+        description += `Campaign: ${zapierData.campaign_name}\n`;
+      }
+      if (zapierData.adset_name) {
+        description += `Adset: ${zapierData.adset_name}\n`;
+      }
+      if (zapierData.ad_name) {
+        description += `Ad: ${zapierData.ad_name}\n`;
+      }
+      if (zapierData.fb_click_id) {
+        description += `Click ID: ${zapierData.fb_click_id}\n`;
+      }
+    }
+    
+    description += `\nSubmitted on: ${new Date().toLocaleString()}`;
+    
+    return description;
+  }
+
+  // Helper method to format time in seconds to mm:ss format
+  private formatTime(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }
+
+  // Helper method to get readable event names
+  private getReadableEventName(technicalName: string): string {
+    const readableNames: { [key: string]: string } = {
+      'session_duration_on_price_section': 'Time spent on Price Section',
+      'session_duration_on_levels_section': 'Time spent on Levels Section',
+      'session_duration_on_teachers_section': 'Time spent on Teachers Section',
+      'session_duration_on_platform_section': 'Time spent on Platform Section',
+      'session_duration_on_advisors_section': 'Time spent on Advisors Section',
+      'session_duration_on_testimonials_section': 'Time spent on Testimonials Section',
+      'session_duration_on_form_section': 'Time spent on Form Section'
+    };
+    
+    return readableNames[technicalName] || technicalName;
   }
 
   private sendLeadUpdateToZapier() {
