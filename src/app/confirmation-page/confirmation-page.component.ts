@@ -521,17 +521,31 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       form_interaction_time: formInteractionTime
     };
 
-    // Determine appointment status based on user's choice
-    // If they started filling but didn't complete, appointment status should be empty
-    let appointmentStatus = ''; // Empty for incomplete forms
+    // Determine appointment status based on user's choice and form state
+    let appointmentStatus = '';
     
-    // Only set appointment status if they actually completed the form
-    if (this.formSubmitted) {
+    // If form was not started at all, return empty
+    if (!this.formStarted) {
+      appointmentStatus = '';
+    }
+    // If form was started but not submitted, return specific status
+    else if (this.formStarted && !this.formSubmitted) {
       const userChoice = this.userSelections.choice || this.selectedChoice;
       if (userChoice === 'confirm') {
-        appointmentStatus = 'confirmed';
+        appointmentStatus = 'Started Confirming but dropped out';
       } else if (userChoice === 'cancel') {
-        appointmentStatus = 'cancelled';
+        appointmentStatus = 'Started Cancelling but dropped out';
+      } else {
+        appointmentStatus = 'Started form but dropped out';
+      }
+    }
+    // If form was submitted, return final status
+    else if (this.formSubmitted) {
+      const userChoice = this.userSelections.choice || this.selectedChoice;
+      if (userChoice === 'confirm') {
+        appointmentStatus = 'Confirmed';
+      } else if (userChoice === 'cancel') {
+        appointmentStatus = 'Cancelled';
       }
     }
 
@@ -547,12 +561,16 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       ad_name: this.urlParams.adName,
       fb_click_id: this.urlParams.fbClickId,
       
-      // Confirmation page data (only what user has filled)
-      confirmation_choice: this.getChoiceEnglish(this.userSelections.choice || this.selectedChoice) || 'No choice made',
-      cancellation_reasons: this.getCancellationReasonsEnglish(this.userSelections.cancellationReasons || this.selectedCancellationReasons),
+      // Confirmation page data (capture whatever user has filled so far)
+      confirmation_choice: this.getChoiceEnglish(this.userSelections.choice || this.selectedChoice) || (this.selectedChoice ? 'Choice made but not submitted' : 'No choice made'),
+      cancellation_reasons: this.getCancellationReasonsEnglish(this.userSelections.cancellationReasons || this.selectedCancellationReasons || []),
       subscription_preference: this.userSelections.subscription || this.selectedSubscription || 'Not selected',
       preferred_start_time: this.getStartTimeEnglish(this.userSelections.startTime || this.selectedStartTime) || 'Not selected',
       payment_access: this.getPaymentEnglish(this.userSelections.payment || this.selectedPayment) || 'Not selected',
+      
+      // Additional form data that user might have started filling
+      other_cancellation_reason: this.otherCancellationReason || '',
+      selected_plan: this.selectedPlan || '',
       
       // Appointment status - empty for incomplete forms
       appointment_status: appointmentStatus,
@@ -585,6 +603,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     console.log('Form Started:', this.formStarted);
     console.log('Form Submitted:', this.formSubmitted);
     console.log('Appointment Status:', appointmentStatus);
+    console.log('Selected Choice:', this.selectedChoice);
+    console.log('Cancellation Reasons:', zapierData.cancellation_reasons);
+    console.log('Subscription Preference:', zapierData.subscription_preference);
+    console.log('Preferred Start Time:', zapierData.preferred_start_time);
+    console.log('Payment Access:', zapierData.payment_access);
+    console.log('Other Cancellation Reason:', zapierData.other_cancellation_reason);
+    console.log('Selected Plan:', zapierData.selected_plan);
     console.log('Zapier Data:', JSON.stringify(zapierData, null, 2));
 
     // Send to Zapier webhook
@@ -631,9 +656,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     let appointmentStatus = ''; // Default for no response
     
     if (userChoice === 'confirm') {
-      appointmentStatus = 'confirmed';
+      appointmentStatus = 'Confirmed';
     } else if (userChoice === 'cancel') {
-      appointmentStatus = 'cancelled';
+      appointmentStatus = 'Cancelled';
     }
     // If no choice or any other value, it remains 'no_response'
 
@@ -831,6 +856,10 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     if (data.preferred_start_time) params.set('preferred_start_time', data.preferred_start_time);
     if (data.payment_access) params.set('payment_readiness', data.payment_access);
     
+    // Additional form data that user might have started filling
+    if (data.other_cancellation_reason) params.set('other_reason', data.other_cancellation_reason);
+    if (data.selected_plan) params.set('selected_plan', data.selected_plan);
+    
     // Session tracking data
     if (data.session_id) params.set('session_id', data.session_id);
     if (data.trigger) params.set('trigger', data.trigger);
@@ -906,7 +935,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     if (zapierData.appointment_status) {
       description += `Appointment Status: ${zapierData.appointment_status}\n`;
     } else {
-      description += `Appointment Status: Not determined (form incomplete)\n`;
+      description += `Appointment Status: Empty (form not submitted)\n`;
     }
     
     if (zapierData.cancellation_reasons && zapierData.cancellation_reasons.length > 0) {
@@ -923,6 +952,15 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     
     if (zapierData.payment_access && zapierData.payment_access !== 'Not selected') {
       description += `Payment Access: ${zapierData.payment_access}\n`;
+    }
+    
+    // Additional form data that user might have started filling
+    if (zapierData.other_cancellation_reason && zapierData.other_cancellation_reason.trim()) {
+      description += `Other Cancellation Reason: ${zapierData.other_cancellation_reason}\n`;
+    }
+    
+    if (zapierData.selected_plan && zapierData.selected_plan.trim()) {
+      description += `Selected Plan: ${zapierData.selected_plan}\n`;
     }
     
     // Session analytics

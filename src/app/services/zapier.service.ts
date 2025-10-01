@@ -57,7 +57,7 @@ export class ZapierService {
       params.set('status', 'New');
       
       // Appointment status based on user response
-      const appointmentStatus = this.getAppointmentStatus(formData.selectedResponse);
+      const appointmentStatus = this.getAppointmentStatus(formData.selectedResponse, formData.formSubmitted, formData.formStarted);
       params.set('appointment_status', appointmentStatus);
       
       // Form responses
@@ -127,9 +127,9 @@ export class ZapierService {
     
     // Handle appointment status - use provided value or determine from response
     if (formData.appointmentStatus !== undefined) {
-      description += `Appointment Status: ${formData.appointmentStatus || 'Not determined (form incomplete)'}\n`;
+      description += `Appointment Status: ${formData.appointmentStatus || 'Empty (form not submitted)'}\n`;
     } else {
-      description += `Appointment Status: ${this.getAppointmentStatus(formData.selectedResponse)}\n`;
+      description += `Appointment Status: ${this.getAppointmentStatus(formData.selectedResponse, formData.formSubmitted, formData.formStarted)}\n`;
     }
     
     // Form completion status
@@ -272,14 +272,36 @@ export class ZapierService {
   }
 
   // Get appointment status based on user response
-  private getAppointmentStatus(selectedResponse: string): string {
-    switch (selectedResponse) {
-      case 'Confirm Interest':
-        return 'confirmed';
-      case 'Cancel':
-        return 'cancelled';
-      default:
-        return ''; // people who neither confirm nor cancel e wil send this
+  private getAppointmentStatus(selectedResponse: string, formSubmitted?: boolean, formStarted?: boolean): string {
+    // If form was not started at all, return empty
+    if (formStarted === false) {
+      return '';
     }
+    
+    // If form was started but not submitted, return specific status
+    if (formStarted === true && formSubmitted === false) {
+      switch (selectedResponse) {
+        case 'Confirm Interest':
+          return 'Started Confirming but dropped out';
+        case 'Cancel':
+          return 'Started Cancelling but dropped out';
+        default:
+          return 'Started form but dropped out';
+      }
+    }
+    
+    // If form was submitted, return final status
+    if (formSubmitted === true) {
+      switch (selectedResponse) {
+        case 'Confirm Interest':
+          return 'Confirmed';
+        case 'Cancel':
+          return 'Cancelled';
+        default:
+          return '';
+      }
+    }
+    
+    return '';
   }
 }
