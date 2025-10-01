@@ -99,7 +99,7 @@ export class LeadFormComponent implements OnInit {
       whatsappSame: ['', Validators.required],
       whatsappNumber: [''],
       email: ['', [Validators.required, Validators.email, this.emailValidator]],
-      state: ['', Validators.required],
+      province: ['', Validators.required],
       campaignName: [''],
       adsetName: [''],
       adName: [''],
@@ -241,7 +241,7 @@ export class LeadFormComponent implements OnInit {
       params.set('level_preference', formData.levelPreference || '');
       params.set('best_time_to_contact', formData.availability || '');
       params.set('detailed_contact_time', formData.specificTimeSlot || '');
-      params.set('state', formData.state || '');
+      params.set('province', formData.province || '');
       
       // Facebook campaign tracking data
       params.set('campaign_name', formData.campaignName || '');
@@ -340,7 +340,7 @@ export class LeadFormComponent implements OnInit {
     description += `Level Preference: ${formData.levelPreference || 'Not provided'}\n`;
     description += `Best Time to Contact: ${formData.availability || 'Not provided'}\n`;
     description += `Detailed Contact Time: ${formData.specificTimeSlot || 'Not provided'}\n`;
-    description += `State: ${formData.state || 'Not provided'}\n`;
+    description += `Province: ${formData.province || 'Not provided'}\n`;
     
     // Facebook campaign data
     if (formData.campaignName) {
@@ -696,10 +696,10 @@ export class LeadFormComponent implements OnInit {
 
   selectState(state: any) {
     this.selectedState = state.value;
-    this.leadForm.get('state')?.setValue(state.value);
+    this.leadForm.get('province')?.setValue(state.value);
     this.showStateDropdown = false;
     this.stateSearchTerm = '';
-    this.leadForm.get('state')?.markAsTouched();
+    this.leadForm.get('province')?.markAsTouched();
   }
 
   onStateSearch(event: any) {
