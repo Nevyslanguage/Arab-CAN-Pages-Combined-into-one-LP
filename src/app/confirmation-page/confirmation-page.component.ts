@@ -456,7 +456,8 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
   private setupPageUnloadTracking() {
     window.addEventListener('beforeunload', () => {
-      this.sendTrackingData('page_unload');
+      // Send form data that user has started filling
+      this.sendPartialFormData('page_unload');
     });
   }
 
@@ -490,6 +491,105 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     });
   }
 
+
+  // Send partial form data when user closes page/tab
+  private sendPartialFormData(trigger: string) {
+    // Only send if user has started filling the form
+    if (!this.formStarted) {
+      console.log('📝 No form interaction detected, skipping partial form data');
+      return;
+    }
+
+    // Calculate form interaction time
+    let formInteractionTime = 0;
+    if (this.formStarted && this.formStartTime > 0) {
+      formInteractionTime = Math.round((Date.now() - this.formStartTime) / 1000);
+    }
+
+    // Prepare events data (convert to seconds)
+    const events = {
+      session_duration_on_price_section: Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000),
+      session_duration_on_levels_section: Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000),
+      session_duration_on_teachers_section: Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000),
+      session_duration_on_platform_section: Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000),
+      session_duration_on_advisors_section: Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000),
+      session_duration_on_testimonials_section: Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000),
+      session_duration_on_form_section: Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000),
+      session_idle_time_duration: Math.round(this.idleTime.total / 1000),
+      form_started: this.formStarted,
+      form_submitted: this.formSubmitted,
+      form_interaction_time: formInteractionTime
+    };
+
+    // Determine appointment status based on user's choice
+    // If they started filling but didn't complete, appointment status should be empty
+    let appointmentStatus = ''; // Empty for incomplete forms
+    
+    // Only set appointment status if they actually completed the form
+    if (this.formSubmitted) {
+      const userChoice = this.userSelections.choice || this.selectedChoice;
+      if (userChoice === 'confirm') {
+        appointmentStatus = 'confirmed';
+      } else if (userChoice === 'cancel') {
+        appointmentStatus = 'cancelled';
+      }
+    }
+
+    // Prepare Zapier webhook data for partial form submission
+    const zapierData: any = {
+      // Lead identification (from previous form)
+      lead_email: this.urlParams.email,
+      lead_name: this.urlParams.name,
+      
+      // Campaign tracking data
+      campaign_name: this.urlParams.campaignName,
+      adset_name: this.urlParams.adsetName,
+      ad_name: this.urlParams.adName,
+      fb_click_id: this.urlParams.fbClickId,
+      
+      // Confirmation page data (only what user has filled)
+      confirmation_choice: this.getChoiceEnglish(this.userSelections.choice || this.selectedChoice) || 'No choice made',
+      cancellation_reasons: this.getCancellationReasonsEnglish(this.userSelections.cancellationReasons || this.selectedCancellationReasons),
+      subscription_preference: this.userSelections.subscription || this.selectedSubscription || 'Not selected',
+      preferred_start_time: this.getStartTimeEnglish(this.userSelections.startTime || this.selectedStartTime) || 'Not selected',
+      payment_access: this.getPaymentEnglish(this.userSelections.payment || this.selectedPayment) || 'Not selected',
+      
+      // Appointment status - empty for incomplete forms
+      appointment_status: appointmentStatus,
+      
+      // Session tracking data
+      session_id: this.sessionId,
+      trigger: trigger,
+      timestamp: new Date().toISOString(),
+      total_session_time: Math.round((Date.now() - this.sessionStartTime) / 1000),
+      events: events,
+      user_agent: navigator.userAgent,
+      page_url: window.location.href,
+      
+      // Form interaction data
+      form_started: this.formStarted,
+      form_submitted: this.formSubmitted,
+      form_interaction_time: formInteractionTime,
+      
+      // Additional context for partial submissions
+      form_completion_status: this.formSubmitted ? 'completed' : 'incomplete',
+      user_abandoned_page: true
+    };
+
+    // Add description after zapierData is fully created
+    zapierData.description = this.formatPartialFormDataForDescription(zapierData, events, trigger);
+
+    // Console logging for debugging
+    console.log('📊 PARTIAL FORM DATA SENT (Page Unload):');
+    console.log('Trigger:', trigger);
+    console.log('Form Started:', this.formStarted);
+    console.log('Form Submitted:', this.formSubmitted);
+    console.log('Appointment Status:', appointmentStatus);
+    console.log('Zapier Data:', JSON.stringify(zapierData, null, 2));
+
+    // Send to Zapier webhook
+    this.sendToZapier(zapierData);
+  }
 
   private sendTrackingData(trigger: string) {
     // Stop all active timers
@@ -774,6 +874,99 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     .catch(error => {
       console.error('❌ Error sending to Zapier:', error);
     });
+  }
+
+  // Format partial form data into a readable description for Salesforce
+  private formatPartialFormDataForDescription(zapierData: any, events: any, trigger: string): string {
+    let description = `Confirmation Page - Partial Form Data (${trigger})\n\n`;
+    
+    // Lead information
+    if (zapierData.lead_name || zapierData.lead_email) {
+      description += `Lead Information:\n`;
+      if (zapierData.lead_name) {
+        description += `Name: ${zapierData.lead_name}\n`;
+      }
+      if (zapierData.lead_email) {
+        description += `Email: ${zapierData.lead_email}\n`;
+      }
+      description += `\n`;
+    }
+    
+    // Form completion status
+    description += `Form Status: ${zapierData.form_completion_status}\n`;
+    description += `User Abandoned Page: ${zapierData.user_abandoned_page}\n`;
+    description += `Form Started: ${zapierData.form_started}\n`;
+    description += `Form Submitted: ${zapierData.form_submitted}\n\n`;
+    
+    // Confirmation page responses (only what user filled)
+    if (zapierData.confirmation_choice && zapierData.confirmation_choice !== 'No choice made') {
+      description += `User Choice: ${zapierData.confirmation_choice}\n`;
+    }
+    
+    if (zapierData.appointment_status) {
+      description += `Appointment Status: ${zapierData.appointment_status}\n`;
+    } else {
+      description += `Appointment Status: Not determined (form incomplete)\n`;
+    }
+    
+    if (zapierData.cancellation_reasons && zapierData.cancellation_reasons.length > 0) {
+      description += `Cancellation Reasons: ${zapierData.cancellation_reasons.join(', ')}\n`;
+    }
+    
+    if (zapierData.subscription_preference && zapierData.subscription_preference !== 'Not selected') {
+      description += `Subscription Preference: ${zapierData.subscription_preference}\n`;
+    }
+    
+    if (zapierData.preferred_start_time && zapierData.preferred_start_time !== 'Not selected') {
+      description += `Preferred Start Time: ${zapierData.preferred_start_time}\n`;
+    }
+    
+    if (zapierData.payment_access && zapierData.payment_access !== 'Not selected') {
+      description += `Payment Access: ${zapierData.payment_access}\n`;
+    }
+    
+    // Session analytics
+    description += `\nSession Analytics:\n`;
+    description += `Session ID: ${zapierData.session_id}\n`;
+    description += `Trigger: ${zapierData.trigger}\n`;
+    description += `Total Session Time: ${this.formatTime(zapierData.total_session_time)}\n`;
+    description += `Form Interaction Time: ${this.formatTime(zapierData.form_interaction_time)}\n`;
+    
+    // Section time analytics
+    description += `\nSection Time Analytics:\n`;
+    Object.keys(events).forEach(key => {
+      if (key.startsWith('session_duration_')) {
+        const readableKey = this.getReadableEventName(key);
+        const value = events[key];
+        description += `• ${readableKey}: ${this.formatTime(value)}\n`;
+      }
+    });
+    
+    // Idle time
+    if (events.session_idle_time_duration) {
+      description += `• Total Idle Time: ${this.formatTime(events.session_idle_time_duration)}\n`;
+    }
+    
+    // Campaign tracking
+    if (zapierData.campaign_name || zapierData.adset_name || zapierData.ad_name) {
+      description += `\nCampaign Tracking:\n`;
+      if (zapierData.campaign_name) {
+        description += `Campaign: ${zapierData.campaign_name}\n`;
+      }
+      if (zapierData.adset_name) {
+        description += `Adset: ${zapierData.adset_name}\n`;
+      }
+      if (zapierData.ad_name) {
+        description += `Ad: ${zapierData.ad_name}\n`;
+      }
+      if (zapierData.fb_click_id) {
+        description += `Click ID: ${zapierData.fb_click_id}\n`;
+      }
+    }
+    
+    description += `\nSubmitted on: ${new Date().toLocaleString()}`;
+    
+    return description;
   }
 
   // Format tracking data into a readable description for Salesforce

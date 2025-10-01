@@ -28,6 +28,10 @@ export interface FormData {
   formStarted?: boolean;
   formSubmitted?: boolean;
   formInteractionTime?: number;
+  // New fields for partial form submissions
+  formCompletionStatus?: string;
+  userAbandonedPage?: boolean;
+  appointmentStatus?: string;
 }
 
 @Injectable({
@@ -86,6 +90,11 @@ export class ZapierService {
       if (formData.formSubmitted !== undefined) params.set('form_submitted', formData.formSubmitted.toString());
       if (formData.formInteractionTime) params.set('form_interaction_time', formData.formInteractionTime.toString());
       
+      // New fields for partial form submissions
+      if (formData.formCompletionStatus) params.set('form_completion_status', formData.formCompletionStatus);
+      if (formData.userAbandonedPage !== undefined) params.set('user_abandoned_page', formData.userAbandonedPage.toString());
+      if (formData.appointmentStatus) params.set('appointment_status', formData.appointmentStatus);
+      
       // Events data (convert to JSON string for URL parameter)
       if (formData.events) {
         params.set('events', JSON.stringify(formData.events));
@@ -115,7 +124,24 @@ export class ZapierService {
     
     // Form responses section
     description += `Response: ${formData.selectedResponse}\n`;
-    description += `Appointment Status: ${this.getAppointmentStatus(formData.selectedResponse)}\n\n`;
+    
+    // Handle appointment status - use provided value or determine from response
+    if (formData.appointmentStatus !== undefined) {
+      description += `Appointment Status: ${formData.appointmentStatus || 'Not determined (form incomplete)'}\n`;
+    } else {
+      description += `Appointment Status: ${this.getAppointmentStatus(formData.selectedResponse)}\n`;
+    }
+    
+    // Form completion status
+    if (formData.formCompletionStatus) {
+      description += `Form Completion Status: ${formData.formCompletionStatus}\n`;
+    }
+    
+    if (formData.userAbandonedPage !== undefined) {
+      description += `User Abandoned Page: ${formData.userAbandonedPage}\n`;
+    }
+    
+    description += `\n`;
     
     if (formData.cancelReasons && formData.cancelReasons.length > 0) {
       description += `Cancel Reasons: ${formData.cancelReasons.join(', ')}\n\n`;
