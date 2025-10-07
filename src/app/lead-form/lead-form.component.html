@@ -105,9 +105,9 @@
     <div class="form-group">
       <label class="form-label">رقم هاتفك الكندي (احذر من ارتكاب أي خطأ!) ⚠️*</label>
       <div class="phone-input-container" [class.ng-invalid]="leadForm.get('phone')?.invalid" [class.ng-touched]="leadForm.get('phone')?.touched">
-        <div class="phone-prefix" dir="ltr">
+        <div class="phone-prefix">
           <span class="flag">🇨🇦</span>
-          <span class="country-code">+1</span>
+          <span class="country-code" dir="ltr">+1</span>
         </div>
         <input type="tel" formControlName="phone" class="form-input english-input phone-number-input" placeholder="(xxx) xxx-xxxx" dir="ltr" (input)="formatPhoneNumber($event)" (blur)="leadForm.get('phone')?.markAsTouched()">
       </div>
@@ -139,39 +139,39 @@
     <div class="form-group" *ngIf="leadForm.get('whatsappSame')?.value === 'no'">
       <label class="form-label">يرجى إدخال رقم واتساب الخاص بك*</label>
       <div class="whatsapp-input-container" [class.ng-invalid]="leadForm.get('whatsappNumber')?.invalid" [class.ng-touched]="leadForm.get('whatsappNumber')?.touched">
-        <div class="whatsapp-prefix-container">
-          <div class="whatsapp-prefix" dir="ltr" (click)="toggleCountryDropdown()">
-            <span class="flag">{{ getSelectedCountryFlag() }}</span>
-            <span class="country-code">{{ selectedCountryCode }}</span>
+        <div class="whatsapp-country-prefix-container">
+          <div class="whatsapp-prefix" (click)="toggleWhatsAppCountryDropdown()">
+            <span class="flag">{{ getSelectedWhatsAppCountryFlag() }}</span>
+            <span class="country-code" dir="ltr">{{ selectedWhatsAppCountryCode }}</span>
             <span class="dropdown-arrow">▼</span>
           </div>
-          <div class="country-dropdown" *ngIf="showCountryDropdown">
+          <div class="country-dropdown" *ngIf="showWhatsAppCountryDropdown">
             <div class="country-search-container">
               <input type="text" 
                      class="country-search-input" 
                      placeholder="البحث عن الدول..." 
-                     [(ngModel)]="countrySearchTerm"
+                     [(ngModel)]="whatsappCountrySearchTerm"
                      [ngModelOptions]="{standalone: true}"
-                     (input)="onCountrySearch($event)"
-                     (keyup)="onCountrySearch($event)"
-                     (paste)="onCountrySearch($event)"
+                     (input)="onWhatsAppCountrySearch($event)"
+                     (keyup)="onWhatsAppCountrySearch($event)"
+                     (paste)="onWhatsAppCountrySearch($event)"
                      (click)="$event.stopPropagation()">
               <button type="button" 
                       class="clear-search-btn" 
-                      *ngIf="countrySearchTerm"
-                      (click)="onSearchClear()"
+                      *ngIf="whatsappCountrySearchTerm"
+                      (click)="onWhatsAppSearchClear()"
                       (click)="$event.stopPropagation()">
                 ✕
               </button>
             </div>
             <div class="country-options-container">
-              <div class="country-option" *ngFor="let country of filteredCountries" (click)="selectCountry(country)">
+              <div class="country-option" *ngFor="let country of filteredWhatsAppCountries" (click)="selectWhatsAppCountry(country)">
                 <span class="flag">{{ country.flag }}</span>
                 <span class="country-code" dir="ltr">{{ country.code }}</span>
                 <span class="country-name">{{ country.country }}</span>
               </div>
-              <div class="no-results" *ngIf="filteredCountries.length === 0 && countrySearchTerm">
-                <span>لم يتم العثور على دول لـ "{{ countrySearchTerm }}"</span>
+              <div class="no-results" *ngIf="filteredWhatsAppCountries.length === 0 && whatsappCountrySearchTerm">
+                <span>لم يتم العثور على دول لـ "{{ whatsappCountrySearchTerm }}"</span>
               </div>
             </div>
           </div>
@@ -194,7 +194,7 @@
       </div>
     </div>
 
-    <!-- Province -->
+    <!-- State -->
     <div class="form-group">
       <p class="province-intro">نود أن نعرف من أين يأتي طلابنا المحتملون 😊</p>
       <label class="form-label">المقاطعة*</label>
@@ -274,7 +274,7 @@
             <div class="space-y-2">
               <p><span class="font-medium">الاسم:</span> {{ leadForm.get('name')?.value || 'غير محدد' }}</p>
               <p><span class="font-medium">البريد الإلكتروني:</span> {{ leadForm.get('email')?.value || 'غير محدد' }}</p>
-              <p><span class="font-medium">رقم الهاتف:</span> <span dir="ltr">{{ getFormattedPhoneDisplay() }}</span></p>
+              <p><span class="font-medium">رقم الهاتف:</span> <span dir="ltr">+1 {{ leadForm.get('phone')?.value || 'غير محدد' }}</span></p>
               <!-- <p><span class="font-medium">المقاطعة:</span> {{ leadForm.get('province')?.value || 'غير محدد' }}</p> -->
             </div>
           </div>
@@ -284,7 +284,7 @@
             <h4 class="font-semibold text-gray-800 mb-3">معلومات الواتساب</h4>
             <div class="space-y-2">
               <!-- <p><span class="font-medium">نفس رقم الهاتف:</span> {{ leadForm.get('whatsappSame')?.value === 'yes' ? 'نعم' : 'لا' }}</p> -->
-              <p *ngIf="leadForm.get('whatsappSame')?.value === 'no'"><span class="font-medium">رقم الواتساب:</span> <span dir="ltr">{{ getFormattedWhatsAppDisplay() }}</span></p>
+              <p *ngIf="leadForm.get('whatsappSame')?.value === 'no'"><span class="font-medium">رقم الواتساب:</span> <span dir="ltr">{{ getFullWhatsAppNumber() }}</span></p>
             </div>
           </div>
 

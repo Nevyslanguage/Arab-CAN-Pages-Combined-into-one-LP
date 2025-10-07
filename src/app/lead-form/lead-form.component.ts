@@ -5,6 +5,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { COUNTRIES, Country } from '.././countries';
 import { getMaxDigitsForCountry } from '.././country-digit-limits';
+import { ZapierService, LeadFormData } from '../services/zapier.service';
 
 @Component({
   selector: 'app-lead-form',
@@ -14,16 +15,18 @@ import { getMaxDigitsForCountry } from '.././country-digit-limits';
   styleUrl: './lead-form.component.css'
 })
 export class LeadFormComponent implements OnInit {
-  // Development flag to disable Zapier calls during development
-  private readonly isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   
   title = 'arableadform';
   leadForm: FormGroup;
   selectedTimeSlots: any[] = [];
-  selectedCountryCode = '+963';
+  selectedCountryCode = '+1'; // Canada uses +1 same as US
+  selectedWhatsAppCountryCode = '+963';
   showCountryDropdown = false;
+  showWhatsAppCountryDropdown = false;
   countrySearchTerm = '';
+  whatsappCountrySearchTerm = '';
   filteredCountries: any[] = [];
+  filteredWhatsAppCountries: any[] = [];
 
   // Province dropdown properties
   showStateDropdown = false;
@@ -37,7 +40,7 @@ export class LeadFormComponent implements OnInit {
   showVerificationPage: boolean = false;
 
   // Canadian Provinces data
-  usStates = [
+  canadianProvinces = [
     { value: 'Alberta', label: 'Alberta' },
     { value: 'British Columbia', label: 'British Columbia' },
     { value: 'Manitoba', label: 'Manitoba' },
@@ -88,14 +91,14 @@ export class LeadFormComponent implements OnInit {
     ]
   };
 
-  constructor(private fb: FormBuilder, private http: HttpClient, private router: Router) {
+  constructor(private fb: FormBuilder, private http: HttpClient, private router: Router, private zapierService: ZapierService) {
     this.leadForm = this.fb.group({
       englishLessonsHistory: ['', Validators.required],
       levelPreference: ['', Validators.required],
       availability: ['', Validators.required],
       specificTimeSlot: ['', Validators.required],
       name: ['', Validators.required],
-      phone: ['', [Validators.required, this.canadianPhoneValidator]],
+      phone: ['', [Validators.required, this.usPhoneValidator]],
       whatsappSame: ['', Validators.required],
       whatsappNumber: [''],
       email: ['', [Validators.required, Validators.email, this.emailValidator]],
@@ -124,7 +127,7 @@ export class LeadFormComponent implements OnInit {
   ngOnInit() {
     this.extractUrlParameters();
     // Ensure the country code display is properly initialized
-    this.selectedCountryCode = '+963'; // Default to Syria
+    this.selectedCountryCode = '+1'; // Default to US/Canada
   }
 
   extractUrlParameters() {
@@ -203,82 +206,58 @@ export class LeadFormComponent implements OnInit {
     });
   }
 
-  sendToZapier(formData: any) {
-    // In development mode, just log the data without making API calls
-    if (this.isDevelopment) {
-      console.log('🔧 Development mode (localhost): Logging lead form data (no Zapier API call)');
-      console.log('📊 Lead form data that would be sent:');
-      console.log(JSON.stringify(formData, null, 2));
-      
-      // Still navigate to confirmation page in development
-      this.navigateToConfirmation(formData);
-      return;
-    }
-    
-    const zapierWebhookUrl = 'https://hook.us1.make.com/bsfdoly1dekmske3r620ydu5p3d3hnor';
-    
+  async sendToZapier(formData: any) {
     try {
-      // Create URL parameters for the webhook (matching successful pattern)
-      const params = new URLSearchParams();
-      
-      // Basic lead information (matching Salesforce format)
-      params.set('first_name', formData.name || '');
-      params.set('last_name', 'Nevys Student');
-      params.set('company', 'Nevy\'s Language Academy');
-      params.set('lead_source', 'Website Landing Page');
-      params.set('status', 'New');
-      
-      // Contact information
-      params.set('email', formData.email || '');
-      params.set('phone', this.formatPhoneForSubmission(formData.phone) || '');
-      params.set('whatsapp_same', formData.whatsappSame || '');
-      params.set('whatsapp_number', formData.whatsappSame === 'no' ? this.getFullWhatsAppNumber() : this.formatPhoneForSubmission(formData.phone) || '');
-      
-      // Form responses
-      params.set('english_lessons_history', formData.englishLessonsHistory || '');
-      params.set('level_preference', formData.levelPreference || '');
-      params.set('best_time_to_contact', formData.availability || '');
-      params.set('detailed_contact_time', formData.specificTimeSlot || '');
-      params.set('province', formData.province || '');
-      
-      // Facebook campaign tracking data
-      params.set('campaign_name', formData.campaignName || '');
-      params.set('adset_name', formData.adsetName || '');
-      params.set('ad_name', formData.adName || '');
-      params.set('fb_click_id', formData.fbClickId || '');
-      
-      // Additional metadata
-      params.set('submission_date', new Date().toISOString());
-      params.set('source_url', window.location.href);
-      
-      // Formatted description for Salesforce
-      params.set('description', this.formatFormDataForDescription(formData));
+      // Prepare lead form data for ZapierService with full international phone numbers
+      const leadFormData: LeadFormData = {
+        englishLessonsHistory: formData.englishLessonsHistory || '',
+        levelPreference: formData.levelPreference || '',
+        availability: formData.availability || '',
+        specificTimeSlot: formData.specificTimeSlot || '',
+        name: formData.name || '',
+        phone: this.getFullPhoneNumber(), // Include country code
+        whatsappSame: formData.whatsappSame || '',
+        whatsappNumber: formData.whatsappSame === 'no' ? this.getFullWhatsAppNumber() : undefined,
+        email: formData.email || '',
+        province: formData.province || '',
+        campaignName: formData.campaignName || '',
+        adsetName: formData.adsetName || '',
+        adName: formData.adName || '',
+        fbClickId: formData.fbClickId || '',
+        submissionDate: new Date().toISOString(),
+        sourceUrl: window.location.href,
+        userAgent: navigator.userAgent
+      };
 
-      console.log('=== ZAPIER WEBHOOK DEBUG ===');
-      console.log('Webhook URL:', zapierWebhookUrl);
-      console.log('Parameters being sent:', params.toString());
-
-      // Send as GET request with query parameters (matching successful pattern)
-      this.http.get(`${zapierWebhookUrl}?${params.toString()}`).subscribe({
-        next: (response) => {
-          console.log('=== ZAPIER SUCCESS ===');
-          console.log('Data sent to Zapier successfully:', response);
-          
-          // Navigate to confirmation page with parameters
-          this.navigateToConfirmation(formData);
-        },
-        error: (error) => {
-          console.error('=== ZAPIER ERROR ===');
-          console.error('Error sending to Zapier:', error);
-          
-          // Even if Zapier fails, still navigate to confirmation page
-          this.navigateToConfirmation(formData);
-        }
+      console.log('Sending lead form data via ZapierService:', leadFormData);
+      
+      // Debug specific fields that might be missing
+      console.log('🔍 LEAD FORM DATA DEBUG:', {
+        'Raw Form Data': formData,
+        'Availability (Best Time)': formData.availability,
+        'Specific Time Slot (Detailed Call Time)': formData.specificTimeSlot,
+        'English Lessons History': formData.englishLessonsHistory,
+        'Level Preference': formData.levelPreference,
+        'State': formData.state,
+        'Phone': this.getFullPhoneNumber(),
+        'WhatsApp Same': formData.whatsappSame,
+        'WhatsApp Number': formData.whatsappSame === 'no' ? this.getFullWhatsAppNumber() : 'Same as phone'
+        // Campaign tracking data removed - only sent in confirmation page
       });
-    } catch (error) {
-      console.error('Error preparing Zapier request:', error);
       
-      // Even if preparation fails, still navigate to confirmation page
+      // Send to Zapier webhook using ZapierService
+      await this.zapierService.sendLeadFormToZapier(leadFormData);
+      
+      console.log('Lead form data successfully sent to webhook');
+      
+      // Navigate to confirmation page after successful submission
+      this.navigateToConfirmation(formData);
+      
+    } catch (error) {
+      console.error('Error sending lead form to webhook:', error);
+      
+      // Still navigate to confirmation page even if webhook fails
+      // This ensures the user experience isn't broken
       this.navigateToConfirmation(formData);
     }
   }
@@ -305,7 +284,7 @@ export class LeadFormComponent implements OnInit {
     document.body.style.overflow = 'auto';
   }
 
-  confirmSubmission() {
+  async confirmSubmission() {
     // Get form values
     const formData = this.leadForm.value;
     
@@ -313,7 +292,7 @@ export class LeadFormComponent implements OnInit {
     this.closeVerificationPage();
     
     // Send data to Zapier webhook
-    this.sendToZapier(formData);
+    await this.sendToZapier(formData);
   }
 
   editForm() {
@@ -321,17 +300,20 @@ export class LeadFormComponent implements OnInit {
     this.closeVerificationPage();
   }
 
+
   // Format form data into a readable description (matching successful pattern)
   private formatFormDataForDescription(formData: any): string {
     let description = `Arabic Lead Form Submission Details:\n\n`;
     
     description += `Name: ${formData.name || 'Not provided'}\n`;
     description += `Email: ${formData.email || 'Not provided'}\n`;
-    description += `Phone: ${formData.phone || 'Not provided'}\n`;
+    description += `Phone: ${this.getFullPhoneNumber() || 'Not provided'}\n`;
     description += `WhatsApp Same: ${formData.whatsappSame || 'Not provided'}\n`;
     
     if (formData.whatsappSame === 'no') {
       description += `WhatsApp Number: ${this.getFullWhatsAppNumber()}\n`;
+    } else {
+      description += `WhatsApp Number: ${this.getFullPhoneNumber()} (Same as phone)\n`;
     }
     
     description += `English Lessons History: ${formData.englishLessonsHistory || 'Not provided'}\n`;
@@ -404,8 +386,8 @@ export class LeadFormComponent implements OnInit {
     return null; // Valid email
   }
 
-  // Canadian phone number validator
-  canadianPhoneValidator(control: any) {
+  // US phone number validator
+  usPhoneValidator(control: any) {
     if (!control.value) {
       return null;
     }
@@ -413,16 +395,16 @@ export class LeadFormComponent implements OnInit {
     // Remove all non-digit characters
     const phoneNumber = control.value.replace(/\D/g, '');
     
-    // Canadian phone numbers should be 10 digits (without country code)
+    // US phone numbers should be 10 digits (without country code)
     if (phoneNumber.length === 10) {
-      // Check if it starts with valid Canadian area codes (2-9 for first digit, 0-9 for second and third)
+      // Check if it starts with valid US area codes (2-9 for first digit, 0-9 for second and third)
       const areaCode = phoneNumber.substring(0, 3);
       const firstDigit = areaCode.charAt(0);
       
-      // Canadian area codes: first digit must be 2-9, second and third can be 0-9
+      // US area codes: first digit must be 2-9, second and third can be 0-9
       // But cannot be 000, 111, 222, etc. (though some are valid, we'll be more lenient)
       if (firstDigit >= '2' && firstDigit <= '9') {
-        return null; // Valid Canadian phone number
+        return null; // Valid US phone number
       }
     }
     
@@ -433,7 +415,7 @@ export class LeadFormComponent implements OnInit {
   formatPhoneNumber(event: any) {
     let value = event.target.value.replace(/\D/g, '');
     
-    // Limit to 10 digits (Canadian phone number without country code)
+    // Limit to 10 digits (US phone number without country code)
     if (value.length > 10) {
       value = value.substring(0, 10);
     }
@@ -456,16 +438,16 @@ export class LeadFormComponent implements OnInit {
   formatWhatsAppNumber(event: any) {
     let value = event.target.value.replace(/\D/g, '');
     
-    // Get the maximum allowed digits for the selected country
-    const maxDigits = this.getMaxDigitsForCountry(this.selectedCountryCode);
+    // Get the maximum allowed digits for the selected WhatsApp country
+    const maxDigits = this.getMaxDigitsForCountry(this.selectedWhatsAppCountryCode);
     
     // Limit to the maximum allowed digits for the selected country
     if (value.length > maxDigits) {
       value = value.substring(0, maxDigits);
     }
     
-    // Format based on country code
-    value = this.formatNumberByCountry(value, this.selectedCountryCode);
+    // Format based on WhatsApp country code
+    value = this.formatNumberByCountry(value, this.selectedWhatsAppCountryCode);
     
     this.leadForm.get('whatsappNumber')?.setValue(value, { emitEvent: false });
   }
@@ -543,34 +525,27 @@ export class LeadFormComponent implements OnInit {
     return getMaxDigitsForCountry(countryCode);
   }
 
-  // Get full WhatsApp number with country code
-  getFullWhatsAppNumber(): string {
-    const number = this.leadForm.get('whatsappNumber')?.value || '';
-    if (!number) {
-      return '';
-    }
-    // Return the number exactly as typed
-    return number;
+  // Get full phone number with country code
+  getFullPhoneNumber(): string {
+    const countryCode = this.selectedCountryCode;
+    const number = this.leadForm.get('phone')?.value || '';
+    return countryCode + ' ' + number;
   }
 
-  // Get formatted phone number for display
-  getFormattedPhoneDisplay(): string {
-    const phone = this.leadForm.get('phone')?.value || '';
-    if (!phone) {
-      return 'غير محدد';
-    }
-    // Return Canadian phone number with +1 country code
-    return '+1 ' + phone;
+  // Get full WhatsApp number with country code
+  getFullWhatsAppNumber(): string {
+    const countryCode = this.selectedWhatsAppCountryCode;
+    const number = this.leadForm.get('whatsappNumber')?.value || '';
+    return countryCode + ' ' + number;
   }
 
   // Get formatted WhatsApp number for display
   getFormattedWhatsAppDisplay(): string {
-    const countryCode = this.selectedCountryCode;
+    const countryCode = this.selectedWhatsAppCountryCode;
     const number = this.leadForm.get('whatsappNumber')?.value || '';
     if (!number) {
-      return 'غير محدد';
+      return 'رقم الهاتف';
     }
-    // Return the number with country code
     return countryCode + ' ' + number;
   }
 
@@ -610,6 +585,12 @@ export class LeadFormComponent implements OnInit {
   // Get the flag for the selected country code
   getSelectedCountryFlag(): string {
     const selectedCountry = this.countryCodes.find(country => country.code === this.selectedCountryCode);
+    return selectedCountry ? selectedCountry.flag : '🇨🇦';
+  }
+
+  // Get the flag for the selected WhatsApp country code
+  getSelectedWhatsAppCountryFlag(): string {
+    const selectedCountry = this.countryCodes.find(country => country.code === this.selectedWhatsAppCountryCode);
     return selectedCountry ? selectedCountry.flag : '🇸🇾';
   }
 
@@ -621,6 +602,16 @@ export class LeadFormComponent implements OnInit {
       this.countrySearchTerm = '';
     }
     console.log('Dropdown toggled, showCountryDropdown:', this.showCountryDropdown);
+  }
+
+  // Toggle WhatsApp country dropdown
+  toggleWhatsAppCountryDropdown() {
+    this.showWhatsAppCountryDropdown = !this.showWhatsAppCountryDropdown;
+    if (this.showWhatsAppCountryDropdown) {
+      this.filteredWhatsAppCountries = [...this.countryCodes];
+      this.whatsappCountrySearchTerm = '';
+    }
+    console.log('WhatsApp dropdown toggled, showWhatsAppCountryDropdown:', this.showWhatsAppCountryDropdown);
   }
 
   // Select a country
@@ -642,6 +633,27 @@ export class LeadFormComponent implements OnInit {
     }
     
     console.log('Country selected:', country);
+  }
+
+  // Select a WhatsApp country
+  selectWhatsAppCountry(country: any) {
+    this.selectedWhatsAppCountryCode = country.code;
+    this.showWhatsAppCountryDropdown = false;
+    this.whatsappCountrySearchTerm = '';
+    
+    // Re-format WhatsApp number if it exists and exceeds the new country's limit
+    const currentWhatsAppNumber = this.leadForm.get('whatsappNumber')?.value || '';
+    if (currentWhatsAppNumber) {
+      const digits = currentWhatsAppNumber.replace(/\D/g, '');
+      const maxDigits = this.getMaxDigitsForCountry(country.code);
+      
+      if (digits.length > maxDigits) {
+        const trimmedDigits = digits.substring(0, maxDigits);
+        this.leadForm.get('whatsappNumber')?.setValue(trimmedDigits, { emitEvent: false });
+      }
+    }
+    
+    console.log('WhatsApp country selected:', country);
   }
 
   // Filter countries based on search term - optimized for speed
@@ -676,6 +688,38 @@ export class LeadFormComponent implements OnInit {
     this.filterCountries();
   }
 
+  // Filter WhatsApp countries based on search term
+  filterWhatsAppCountries() {
+    const searchTerm = this.whatsappCountrySearchTerm?.trim() || '';
+    
+    // If search is empty, show all countries immediately
+    if (!searchTerm) {
+      this.filteredWhatsAppCountries = [...this.countryCodes];
+      return;
+    }
+    
+    // Fast filtering with lowercase search term
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    this.filteredWhatsAppCountries = this.countryCodes.filter(country => 
+      country.country.toLowerCase().includes(lowerSearchTerm) ||
+      country.code.includes(searchTerm) ||
+      country.flag.includes(searchTerm)
+    );
+  }
+
+  // Handle WhatsApp country search input with real-time filtering
+  onWhatsAppCountrySearch(event: any) {
+    this.whatsappCountrySearchTerm = event.target.value;
+    // Immediate filtering for fast response
+    this.filterWhatsAppCountries();
+  }
+
+  // Handle when WhatsApp search input is cleared
+  onWhatsAppSearchClear() {
+    this.whatsappCountrySearchTerm = '';
+    this.filterWhatsAppCountries();
+  }
+
   // Handle country code change (legacy method)
   onCountryCodeChange() {
     // This method is called when the country code dropdown changes
@@ -683,11 +727,11 @@ export class LeadFormComponent implements OnInit {
     console.log('Country code changed to:', this.selectedCountryCode);
   }
 
-  // Province dropdown methods
+  // State dropdown methods
   toggleStateDropdown() {
     this.showStateDropdown = !this.showStateDropdown;
     if (this.showStateDropdown) {
-      this.filteredStates = [...this.usStates];
+      this.filteredStates = [...this.canadianProvinces];
       this.stateSearchTerm = '';
     }
   }
@@ -709,14 +753,14 @@ export class LeadFormComponent implements OnInit {
     const searchTerm = this.stateSearchTerm?.trim() || '';
     
     if (!searchTerm) {
-      this.filteredStates = [...this.usStates];
+      this.filteredStates = [...this.canadianProvinces];
       return;
     }
     
     const lowerSearchTerm = searchTerm.toLowerCase();
-    this.filteredStates = this.usStates.filter(state => 
-      state.label.toLowerCase().includes(lowerSearchTerm) ||
-      state.value.toLowerCase().includes(lowerSearchTerm)
+    this.filteredStates = this.canadianProvinces.filter(province => 
+      province.label.toLowerCase().includes(lowerSearchTerm) ||
+      province.value.toLowerCase().includes(lowerSearchTerm)
     );
   }
 
@@ -729,8 +773,8 @@ export class LeadFormComponent implements OnInit {
     if (!this.selectedState) {
       return '...Select ✓';
     }
-    const state = this.usStates.find(s => s.value === this.selectedState);
-    return state ? state.label : this.selectedState;
+    const province = this.canadianProvinces.find(p => p.value === this.selectedState);
+    return province ? province.label : this.selectedState;
   }
 
   // Close dropdown when clicking outside
@@ -739,6 +783,9 @@ export class LeadFormComponent implements OnInit {
     const target = event.target as HTMLElement;
     if (!target.closest('.whatsapp-prefix-container')) {
       this.showCountryDropdown = false;
+    }
+    if (!target.closest('.whatsapp-country-prefix-container')) {
+      this.showWhatsAppCountryDropdown = false;
     }
     if (!target.closest('.state-dropdown-container')) {
       this.showStateDropdown = false;
