@@ -1170,7 +1170,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       // Add record parameter as JSON string
       params.set('record', JSON.stringify(recordData));
 
-      const webhookUrl = 'https://hook.us1.make.com/uc37wscl0r75np86zrss260m9mecyubf';
+      const webhookUrl = 'https://hook.us1.make.com/jre3bhycp0cabgsytschojmhh5htrh0y';
       const fullUrl = `${webhookUrl}?${params.toString()}`;
       
       // Debug: Log the full URL and record parameter
