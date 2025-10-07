@@ -470,28 +470,32 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     });
     
     // Also check on page unload (user closed tab/window) - Desktop only
+    // Add a delay to prevent immediate triggering on page load
     const isMobileForBeforeunload = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     if (!isMobileForBeforeunload) {
-      window.addEventListener('beforeunload', () => {
-        console.log('🚪 Desktop: Page unloading - sending data immediately');
-        
-        // Send session data if not already sent
-        if (!this.sessionDataSent) {
-          console.log('🚪 Desktop: beforeunload - Sending session data as user leaves');
-          this.sendDataForSession('user_closed_page');
-        }
-        
-        // Calculate time away from page load time
-        const pageLoadTime = localStorage.getItem('nevys_page_load_time');
-        if (pageLoadTime) {
-          const timeAwaySeconds = Math.floor((Date.now() - parseInt(pageLoadTime)) / 1000);
-          // Use same method as desktop for consistency
-          this.sendAwayAnalytics(timeAwaySeconds);
-        } else {
-          // Fallback to 90 seconds if no page load time
-          this.sendAwayAnalytics(90);
-        }
-      });
+      // Add a delay to prevent immediate triggering when page loads
+      setTimeout(() => {
+        window.addEventListener('beforeunload', () => {
+          console.log('🚪 Desktop: Page unloading - sending data immediately');
+          
+          // Send session data if not already sent
+          if (!this.sessionDataSent) {
+            console.log('🚪 Desktop: beforeunload - Sending session data as user leaves');
+            this.sendDataForSession('user_closed_page');
+          }
+          
+          // Calculate time away from page load time
+          const pageLoadTime = localStorage.getItem('nevys_page_load_time');
+          if (pageLoadTime) {
+            const timeAwaySeconds = Math.floor((Date.now() - parseInt(pageLoadTime)) / 1000);
+            // Use same method as desktop for consistency
+            this.sendAwayAnalytics(timeAwaySeconds);
+          } else {
+            // Fallback to 90 seconds if no page load time
+            this.sendAwayAnalytics(90);
+          }
+        });
+      }, 5000); // 5 second delay to prevent immediate triggering
     }
   }
   
@@ -781,39 +785,55 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     }
     
     // Mobile-specific: Add beforeunload for last-chance analytics
-    window.addEventListener('beforeunload', () => {
-      if (isMobile) {
-        // Mobile: Send analytics immediately when closing page (no time threshold)
-        console.log('📱 Mobile: beforeunload - Sending analytics immediately as user closes page');
-        const actualTimeAway = Math.floor((Date.now() - this.sessionStartTime) / 1000);
-        this.sendMobileAwayData(actualTimeAway);
-      } else if (!isMobile) {
-        // Desktop: Keep existing logic (90-second threshold)
-        if (!this.sessionDataSent) {
-          console.log('🖥️ Desktop: beforeunload - Sending session data as user leaves');
-          this.sendDataForSession('user_closed_page');
+    // Add a delay to prevent immediate triggering when page loads
+    setTimeout(() => {
+      window.addEventListener('beforeunload', () => {
+        if (isMobile) {
+          // Mobile: Send analytics immediately when closing page (no time threshold)
+          console.log('📱 Mobile: beforeunload - Sending analytics immediately as user closes page');
+          const actualTimeAway = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+          this.sendMobileAwayData(actualTimeAway);
+        } else if (!isMobile) {
+          // Desktop: Keep existing logic (90-second threshold)
+          if (!this.sessionDataSent) {
+            console.log('🖥️ Desktop: beforeunload - Sending session data as user leaves');
+            this.sendDataForSession('user_closed_page');
+          }
+          
+          // Calculate time away from page load time for desktop
+          const pageLoadTime = localStorage.getItem('nevys_page_load_time');
+          if (pageLoadTime) {
+            const timeAwaySeconds = Math.floor((Date.now() - parseInt(pageLoadTime)) / 1000);
+            // Use same method as desktop for consistency
+            this.sendAwayAnalytics(timeAwaySeconds);
+          } else {
+            // Fallback to 90 seconds if no page load time
+            this.sendAwayAnalytics(90);
+          }
         }
-        
-        // Calculate time away from page load time for desktop
-        const pageLoadTime = localStorage.getItem('nevys_page_load_time');
-        if (pageLoadTime) {
-          const timeAwaySeconds = Math.floor((Date.now() - parseInt(pageLoadTime)) / 1000);
-          // Use same method as desktop for consistency
-          this.sendAwayAnalytics(timeAwaySeconds);
-        } else {
-          // Fallback to 90 seconds if no page load time
-          this.sendAwayAnalytics(90);
-        }
-      }
-    });
+      });
+    }, 5000); // 5 second delay to prevent immediate triggering
   }
 
   private checkMobileRecovery() {
-    // Check if this is a mobile device
+    // First check if this is actually a mobile device
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    if (isMobile) {
-      console.log('📱 Mobile recovery check on page load');
+    // Additional check: Make sure we're not just in responsive mode on desktop
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isActualMobile = isMobile && (isTouchDevice || window.innerWidth <= 768);
+    
+    // Only run mobile recovery on actual mobile devices, not responsive desktop browsers
+    if (!isActualMobile) {
+      console.log('💻 Desktop device detected (even in responsive mode) - skipping mobile recovery check');
+      // Clear any stale mobile tracking data that might exist from previous sessions
+      this.clearStaleMobileTrackingData();
+      return;
+    }
+    
+    // Add a delay to prevent immediate analytics sending on page load
+    setTimeout(() => {
+      console.log('📱 Mobile recovery check on page load (delayed)');
       
       // Check if user left but didn't reach 90 seconds yet
       const userLeftTime = localStorage.getItem('userLeftTime');
@@ -888,7 +908,41 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         localStorage.removeItem('awayStartTime');
         localStorage.removeItem('awayTrackingActive');
       }
-    }
+    }, 10000); // 10 second delay to prevent immediate triggering on page load
+  }
+
+  // Helper method to clear stale mobile tracking data
+  private clearStaleMobileTrackingData() {
+    console.log('🧹 Clearing stale mobile tracking data from localStorage');
+    localStorage.removeItem('userLeftTime');
+    localStorage.removeItem('waitingFor90Seconds');
+    localStorage.removeItem('awayStartTime');
+    localStorage.removeItem('awayTrackingActive');
+    localStorage.removeItem('mobileAwayStartTime');
+    localStorage.removeItem('mobileWaitingFor90Seconds');
+  }
+
+  // Comprehensive method to clear all tracking data after analytics are sent
+  private clearAllTrackingData() {
+    console.log('🧹 Clearing all tracking data from localStorage after analytics sent');
+    
+    // Clear mobile tracking data
+    localStorage.removeItem('userLeftTime');
+    localStorage.removeItem('waitingFor90Seconds');
+    localStorage.removeItem('awayStartTime');
+    localStorage.removeItem('awayTrackingActive');
+    localStorage.removeItem('mobileAwayStartTime');
+    localStorage.removeItem('mobileWaitingFor90Seconds');
+    
+    // Clear page load time data
+    localStorage.removeItem('nevys_page_load_time');
+    localStorage.removeItem('nevys_session_id');
+    
+    // Clear any other tracking-related data
+    localStorage.removeItem('trackingActive');
+    localStorage.removeItem('sessionDataSent');
+    
+    console.log('✅ All tracking data cleared from localStorage');
   }
 
   private logPageVisibilityChange(state: string) {
@@ -1000,6 +1054,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       // Send using ZapierService
       await this.zapierService.sendToZapier(formData);
       console.log('✅ Away analytics successfully sent via ZapierService');
+      
+      // Clean localStorage after successful analytics send
+      this.clearAllTrackingData();
 
     } catch (error) {
       console.error('❌ Error sending away analytics via ZapierService:', error);
@@ -1184,6 +1241,8 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       if (sent) {
         console.log('✅ Mobile: Away analytics successfully sent via sendBeacon');
         this.sessionDataSent = true; // Mark as sent to prevent duplicates
+        // Clean localStorage after successful analytics send
+        this.clearAllTrackingData();
       } else {
         console.error('❌ Mobile: sendBeacon failed to queue the request');
         
@@ -1198,6 +1257,8 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
           if (response.ok) {
             console.log('✅ Mobile: Fallback fetch successful');
             this.sessionDataSent = true;
+            // Clean localStorage after successful fallback send
+            this.clearAllTrackingData();
           } else {
             console.error('❌ Mobile: Fallback fetch failed:', response.status);
           }
@@ -1518,6 +1579,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       await this.zapierService.sendToZapier(data);
       
       console.log('✅ Data successfully sent via ZapierService');
+      
+      // Clean localStorage after successful analytics send
+      this.clearAllTrackingData();
       
     } catch (error) {
       console.error('❌ Error sending data via ZapierService:', error);
