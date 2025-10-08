@@ -556,14 +556,14 @@
   </div>
 
   <!-- Pricing Plans Popup -->
+  <!-- Pricing popup commented out for now -->
+  <!--
   <div *ngIf="showPricingPopup" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" (click)="closePricingPopup()">
     <div class="bg-white rounded-lg shadow-2xl max-w-md w-full mx-4" (click)="$event.stopPropagation()">
-      <!-- Header -->
       <div class="p-6 border-b border-gray-200">
         <h3 class="text-2xl font-bold text-gray-800 text-center">اختر الباقة التي تفضلها</h3>
       </div>
       
-      <!-- Plan Options -->
       <div class="p-6 space-y-4">
         <button (click)="onPlanSelect('light')" 
                 class="w-full p-4 text-right border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all duration-200">
@@ -584,7 +584,6 @@
         </button>
       </div>
       
-      <!-- Close Button -->
       <div class="p-6 border-t border-gray-200 text-center">
         <button (click)="closePricingPopup()" 
                 class="text-gray-500 hover:text-gray-700 transition-colors duration-200">
@@ -593,6 +592,7 @@
       </div>
     </div>
   </div>
+  -->
 
     <!-- Validation Error Modal -->
     <div *ngIf="showValidationError" class="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4" (click)="closeValidationError()">

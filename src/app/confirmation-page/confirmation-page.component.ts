@@ -43,13 +43,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   initialTouchDistance: number = 0;
   initialZoomLevel: number = 1;
 
-  // Pricing section timer
-  showPricingPopup: boolean = false;
-  private pricingTimer: any;
+  // Pricing section timer - COMMENTED OUT FOR NOW
+  // showPricingPopup: boolean = false;
+  // private pricingTimer: any;
   private pricingStartTime: number = 0;
   private pricingEndTime: number = 0;
   private totalPricingTime: number = 0;
-  private hasShownPricingPopup: boolean = false;
+  private hasShownPricingPopup: boolean = false; // Keep property but functionality is disabled
   private pricingSectionVisible: boolean = false;
   
   // Pricing time validation dialog
@@ -267,9 +267,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     if (this.idlePopupTimer) {
       clearTimeout(this.idlePopupTimer);
     }
-    if (this.pricingTimer) {
-      clearTimeout(this.pricingTimer);
-    }
+    // if (this.pricingTimer) { // COMMENTED OUT FOR NOW
+    //   clearTimeout(this.pricingTimer);
+    // }
     
     // Send data for session (only once per session)
     this.sendDataForSession('user_closed_page');
@@ -355,9 +355,10 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     const pricingObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         this.pricingSectionVisible = entry.isIntersecting;
-        if (entry.isIntersecting && !this.hasShownPricingPopup) {
-          this.startPricingTimer();
-        } else if (!entry.isIntersecting) {
+        // if (entry.isIntersecting && !this.hasShownPricingPopup) { // COMMENTED OUT FOR NOW
+        //   this.startPricingTimer();
+        // } else 
+        if (!entry.isIntersecting) {
           this.stopPricingTimer();
         }
       });
@@ -2505,17 +2506,17 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       console.log('Started pricing timer at:', new Date(this.pricingStartTime));
     }
     
-    // Keep the original popup logic
-    if (!this.hasShownPricingPopup && this.pricingSectionVisible) {
-      this.pricingTimer = setTimeout(() => {
-        if (this.pricingSectionVisible && !this.hasShownPricingPopup) {
-          this.showPricingPopup = true;
-          this.hasShownPricingPopup = true;
-          // Prevent body scroll when popup is open
-          document.body.style.overflow = 'hidden';
-        }
-      }, 20000); // 20 seconds
-    }
+    // Keep the original popup logic - COMMENTED OUT FOR NOW
+    // if (!this.hasShownPricingPopup && this.pricingSectionVisible) {
+    //   this.pricingTimer = setTimeout(() => {
+    //     if (this.pricingSectionVisible && !this.hasShownPricingPopup) {
+    //       this.showPricingPopup = true;
+    //       this.hasShownPricingPopup = true;
+    //       // Prevent body scroll when popup is open
+    //       document.body.style.overflow = 'hidden';
+    //     }
+    //   }, 20000); // 20 seconds
+    // }
   }
 
   stopPricingTimer() {
@@ -2527,18 +2528,19 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       this.pricingStartTime = 0; // Reset for next session
     }
     
-    // Keep the original timer clearing logic
-    if (this.pricingTimer) {
-      clearTimeout(this.pricingTimer);
-      this.pricingTimer = null;
-    }
+    // Keep the original timer clearing logic - COMMENTED OUT FOR NOW
+    // if (this.pricingTimer) {
+    //   clearTimeout(this.pricingTimer);
+    //   this.pricingTimer = null;
+    // }
   }
 
-  closePricingPopup() {
-    this.showPricingPopup = false;
-    // Restore body scroll
-    document.body.style.overflow = 'auto';
-  }
+  // closePricingPopup() - COMMENTED OUT FOR NOW
+  // closePricingPopup() {
+  //   this.showPricingPopup = false;
+  //   // Restore body scroll
+  //   document.body.style.overflow = 'auto';
+  // }
 
   onPlanSelect(plan: string) {
     // Capture the selected plan
@@ -2564,7 +2566,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // TODO: Send data to your backend/analytics service
     // this.sendPlanSelectionData(this.planSelectionData);
     
-    this.closePricingPopup();
+    // this.closePricingPopup(); // COMMENTED OUT FOR NOW
   }
 
   // Future method to send data (ready for implementation)
