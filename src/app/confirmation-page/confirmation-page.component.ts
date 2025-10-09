@@ -212,6 +212,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         return;
       }
       
+      
       // For confirmations, collect all user selections
       this.userSelections = {
         choice: this.selectedChoice,
@@ -582,13 +583,20 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     let hiddenStartTime: number | null = null;
     let awayTimer: any = null;
     let mobileInterval: any = null;
+    let pageLoadTime = Date.now();
+    let trackingEnabled = false;
     
     // Mobile-friendly approach: Use multiple fallback methods
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     console.log('📱 Mobile device detected:', isMobile);
     
+    // Enable tracking immediately - no delay needed
+    trackingEnabled = true;
+    console.log('✅ Page visibility tracking enabled');
+    
     // Track when page becomes hidden/visible
     document.addEventListener('visibilitychange', () => {
+      
       if (document.hidden) {
         // Page is hidden (user switched to another tab, minimized browser, etc.)
         hiddenStartTime = Date.now();
@@ -599,7 +607,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         console.log('📱 Mobile device:', isMobile);
         
         if (isMobile) {
-          // Mobile: Send analytics immediately when switching to another app
+          // Mobile: Send analytics immediately when user leaves (no 90-second wait)
           console.log('📱 Mobile: User switched to another app - sending analytics immediately');
           
           // Store the time when user left
@@ -832,84 +840,18 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       return;
     }
     
-    // Add a delay to prevent immediate analytics sending on page load
-    setTimeout(() => {
-      console.log('📱 Mobile recovery check on page load (delayed)');
-      
-      // Check if user left but didn't reach 90 seconds yet
-      const userLeftTime = localStorage.getItem('userLeftTime');
-      const waitingFor90Seconds = localStorage.getItem('waitingFor90Seconds');
-      
-      if (userLeftTime && waitingFor90Seconds === 'true') {
-        const timeAway = Date.now() - parseInt(userLeftTime);
-        const timeAwaySeconds = Math.floor(timeAway / 1000);
-        
-        console.log('📱 Mobile: Found user who left but didn\'t reach 90 seconds');
-        console.log('📱 Time away since leaving:', timeAwaySeconds, 'seconds');
-        
-        if (timeAwaySeconds >= 90) {
-          console.log('🚨 Mobile: User was away for 90+ seconds - Sending analytics on return!');
-          this.sendAwayAnalytics(timeAwaySeconds);
-        } else {
-          console.log('📱 Mobile: User returned before 90 seconds - No analytics sent');
-        }
-        
-        // Clear the data
-        localStorage.removeItem('userLeftTime');
-        localStorage.removeItem('waitingFor90Seconds');
-      }
-      
-      // ALSO check for users who have been away for 90+ seconds (same as main tracking)
-      const awayStartTime = localStorage.getItem('awayStartTime');
-      const awayTrackingActive = localStorage.getItem('awayTrackingActive');
-      
-      if (awayStartTime && awayTrackingActive === 'true') {
-        const timeAway = Date.now() - parseInt(awayStartTime);
-        const timeAwaySeconds = Math.floor(timeAway / 1000);
-        
-        console.log('📱 Mobile: Found main tracking - User was away for', timeAwaySeconds, 'seconds');
-        
-        if (timeAwaySeconds >= 90) {
-          console.log('🚨 Mobile: Main tracking - User was away for 90+ seconds - Sending analytics!');
-          this.sendAwayAnalytics(timeAwaySeconds);
-        }
-        
-        // Clear the data
-        localStorage.removeItem('awayStartTime');
-        localStorage.removeItem('awayTrackingActive');
-      }
-      
-      // Check for mobile-specific 90-second delay tracking
-      const mobileAwayStartTime = localStorage.getItem('mobileAwayStartTime');
-      const mobileWaitingFor90Seconds = localStorage.getItem('mobileWaitingFor90Seconds');
-      
-      if (mobileAwayStartTime && mobileWaitingFor90Seconds === 'true') {
-        const timeAway = Date.now() - parseInt(mobileAwayStartTime);
-        const timeAwaySeconds = Math.floor(timeAway / 1000);
-        
-        console.log('📱 Mobile: Found mobile 90-second delay tracking - User was away for', timeAwaySeconds, 'seconds');
-        
-        if (timeAwaySeconds >= 90) {
-          console.log('🚨 Mobile: Mobile delay tracking - User was away for 90+ seconds - Sending analytics!');
-          this.sendAwayAnalytics(timeAwaySeconds);
-        } else {
-          console.log('📱 Mobile: User returned before 90 seconds - No analytics sent');
-        }
-        
-        // Clear the data
-        localStorage.removeItem('mobileAwayStartTime');
-        localStorage.removeItem('mobileWaitingFor90Seconds');
-      }
-      
-      
-      // Clear any stale tracking data
-      const trackingActive = localStorage.getItem('awayTrackingActive');
-      if (trackingActive === 'true') {
-        console.log('📱 Mobile: Clearing stale tracking data');
-        localStorage.removeItem('awayStartTime');
-        localStorage.removeItem('awayTrackingActive');
-      }
-    }, 10000); // 10 second delay to prevent immediate triggering on page load
+    // Just clear any stale tracking data on page load - don't send analytics
+    console.log('📱 Mobile recovery check on page load - clearing stale data only');
+    
+    // Clear any stale tracking data without sending analytics
+    localStorage.removeItem('userLeftTime');
+    localStorage.removeItem('waitingFor90Seconds');
+    localStorage.removeItem('awayStartTime');
+    localStorage.removeItem('awayTrackingActive');
+    localStorage.removeItem('mobileAwayStartTime');
+    localStorage.removeItem('mobileWaitingFor90Seconds');
+    
+    console.log('📱 Mobile: Cleared all stale tracking data on page load');
   }
 
   // Helper method to clear stale mobile tracking data
