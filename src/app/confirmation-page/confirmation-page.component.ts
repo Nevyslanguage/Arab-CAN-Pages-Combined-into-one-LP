@@ -2188,6 +2188,49 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     return this.selectedCancellationReasons.includes(reason);
   }
 
+  // Validation methods for form completion
+  isCancellationFormValid(): boolean {
+    if (this.selectedChoice !== 'cancel') {
+      return true; // Not a cancellation, so validation doesn't apply
+    }
+    
+    // Check if at least one cancellation reason is selected
+    if (this.selectedCancellationReasons.length === 0) {
+      return false;
+    }
+    
+    // If "other reason" is selected, require text input
+    if (this.selectedCancellationReasons.includes('other') && (!this.otherCancellationReason || this.otherCancellationReason.trim() === '')) {
+      return false;
+    }
+    
+    // Require subscription preference
+    if (!this.selectedSubscription) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  isConfirmationFormValid(): boolean {
+    if (this.selectedChoice !== 'confirm') {
+      return true; // Not a confirmation, so validation doesn't apply
+    }
+    
+    // For confirmation, require start time and payment preference
+    return !!(this.selectedStartTime && this.selectedPayment);
+  }
+
+  isFormValid(): boolean {
+    if (this.selectedChoice === 'cancel') {
+      return this.isCancellationFormValid();
+    } else if (this.selectedChoice === 'confirm') {
+      return this.isConfirmationFormValid();
+    }
+    
+    return true; // No choice selected yet - allow button to be enabled
+  }
+
   // Radio button handling
   onSubscriptionChange(value: string) {
     console.log('🔍 onSubscriptionChange called:', { value, formStarted: this.formStarted });
