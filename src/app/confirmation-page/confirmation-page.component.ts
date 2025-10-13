@@ -356,10 +356,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     const pricingObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         this.pricingSectionVisible = entry.isIntersecting;
-        // if (entry.isIntersecting && !this.hasShownPricingPopup) { // COMMENTED OUT FOR NOW
-        //   this.startPricingTimer();
-        // } else 
-        if (!entry.isIntersecting) {
+        if (entry.isIntersecting) {
+          this.startPricingTimer();
+        } else {
           this.stopPricingTimer();
         }
       });
