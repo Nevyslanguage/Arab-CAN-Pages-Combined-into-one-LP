@@ -186,9 +186,9 @@ export class LeadFormComponent implements OnInit {
     if (this.leadForm.valid) {
       console.log('Form submitted:', this.leadForm.value);
       
-      // Show verification page instead of direct submission
-      this.showVerificationPage = true;
-      document.body.style.overflow = 'hidden';
+      // Get form values and send directly to Zapier
+      const formData = this.leadForm.value;
+      this.sendToZapier(formData);
       
     } else {
       console.log('Form is invalid');
