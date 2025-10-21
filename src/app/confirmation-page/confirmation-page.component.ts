@@ -164,7 +164,11 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
     // Check if user spent enough time on pricing section (5 seconds = 5000ms)
     const totalTimeInSeconds = this.totalPricingTime / 1000;
+    console.log('🔍 PRICING TIME DEBUG:');
     console.log('Total time spent on pricing section:', totalTimeInSeconds, 'seconds');
+    console.log('totalPricingTime (ms):', this.totalPricingTime);
+    console.log('pricingSectionVisible:', this.pricingSectionVisible);
+    console.log('pricingStartTime:', this.pricingStartTime);
     
     if (totalTimeInSeconds < 5) {
       // Show validation dialog asking if they checked prices
@@ -356,10 +360,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     const pricingObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         this.pricingSectionVisible = entry.isIntersecting;
-        // if (entry.isIntersecting && !this.hasShownPricingPopup) { // COMMENTED OUT FOR NOW
-        //   this.startPricingTimer();
-        // } else 
-        if (!entry.isIntersecting) {
+        if (entry.isIntersecting) {
+          this.startPricingTimer();
+        } else {
           this.stopPricingTimer();
         }
       });
@@ -607,16 +610,24 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         console.log('📱 Mobile device:', isMobile);
         
         if (isMobile) {
-          // Mobile: Send analytics immediately when user leaves (no 90-second wait)
-          console.log('📱 Mobile: User switched to another app - sending analytics immediately');
+          // Mobile: Send data immediately when page becomes hidden (user leaves page)
+          console.log('📱 Mobile: Page is HIDDEN - User left page - sending data immediately');
+          console.log('📱 Mobile: sessionDataSent:', this.sessionDataSent);
           
-          // Store the time when user left
-          localStorage.setItem('awayStartTime', hiddenStartTime.toString());
-          localStorage.setItem('awayTrackingActive', 'true');
-          
-          // Mobile: Send analytics immediately when user switches to another app
-          const actualTimeAway = Math.floor((Date.now() - this.sessionStartTime) / 1000);
-          this.sendMobileAwayData(actualTimeAway);
+          // Only send if not already sent
+          if (!this.sessionDataSent) {
+            // Store the time when user left
+            hiddenStartTime = Date.now();
+            localStorage.setItem('awayStartTime', hiddenStartTime.toString());
+            localStorage.setItem('awayTrackingActive', 'true');
+            
+            // Mobile: Send analytics immediately when user leaves page
+            const actualTimeAway = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+            console.log('📱 Mobile: Sending data immediately - actualTimeAway:', actualTimeAway);
+            this.sendMobileAwayData(actualTimeAway);
+          } else {
+            console.log('📱 Mobile: Data already sent, skipping');
+          }
           
         } else {
           // Desktop: Use setTimeout (more reliable on desktop)
@@ -689,18 +700,18 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     if (isMobile) {
       console.log('📱 Adding mobile-specific event listeners');
       
-      // Mobile: pagehide/pageshow events (more reliable than visibilitychange on mobile)
+      // Mobile: pagehide event (backup for mobile page leaving)
       window.addEventListener('pagehide', (event) => {
-        console.log('📱 Mobile: pagehide event - User leaving page');
-        if (!hiddenStartTime) {
-          hiddenStartTime = Date.now();
-          localStorage.setItem('awayStartTime', hiddenStartTime.toString());
-          localStorage.setItem('awayTrackingActive', 'true');
-          console.log('📱 Mobile: User leaving page - sending analytics immediately');
-          
-          // Mobile: Send analytics immediately when user leaves (no 90-second wait)
+        console.log('📱 Mobile: pagehide event - User leaving page (backup)');
+        console.log('📱 Mobile: sessionDataSent:', this.sessionDataSent);
+        
+        // Only send data if visibilitychange didn't already send it
+        if (!this.sessionDataSent) {
+          console.log('📱 Mobile: pagehide - sending data as backup');
           const actualTimeAway = Math.floor((Date.now() - this.sessionStartTime) / 1000);
           this.sendMobileAwayData(actualTimeAway);
+        } else {
+          console.log('📱 Mobile: pagehide - data already sent, skipping');
         }
       });
       
@@ -711,13 +722,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
           const timeAwaySeconds = Math.floor(timeAway / 1000);
           
           console.log('📱 Mobile: pageshow - Time away:', timeAwaySeconds, 'seconds');
+          console.log('📱 Mobile: Data was already sent when user left - just clearing tracking data');
           
-          if (timeAwaySeconds >= 90) {
-            console.log('🚨 Mobile: pageshow - User was away for 90+ seconds - Sending analytics!');
-            this.sendAwayAnalytics(timeAwaySeconds);
-          }
-          
-          // Clear tracking data
+          // Clear tracking data (data was already sent when user left)
           localStorage.removeItem('awayStartTime');
           localStorage.removeItem('awayTrackingActive');
           hiddenStartTime = null;
@@ -742,13 +749,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
           const timeAwaySeconds = Math.floor(timeAway / 1000);
           
           console.log('📱 Mobile: resume - Time away:', timeAwaySeconds, 'seconds');
+          console.log('📱 Mobile: Data was already sent when user left - just clearing tracking data');
           
-          if (timeAwaySeconds >= 90) {
-            console.log('🚨 Mobile: resume - User was away for 90+ seconds - Sending analytics!');
-            this.sendAwayAnalytics(timeAwaySeconds);
-          }
-          
-          // Clear tracking data
+          // Clear tracking data (data was already sent when user left)
           localStorage.removeItem('awayStartTime');
           localStorage.removeItem('awayTrackingActive');
           hiddenStartTime = null;
@@ -798,10 +801,17 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       window.addEventListener('beforeunload', () => {
         if (isMobile) {
-          // Mobile: Send analytics immediately when closing page (no time threshold)
-          console.log('📱 Mobile: beforeunload - Sending analytics immediately as user closes page');
+          // Mobile: Send session data when closing page (same as desktop)
+          console.log('📱 Mobile: beforeunload - Sending session data as user closes page');
+          if (!this.sessionDataSent) {
+            this.sendDataForSession('user_closed_page');
+          }
+          
+          // Also send away analytics if user was away for significant time
           const actualTimeAway = Math.floor((Date.now() - this.sessionStartTime) / 1000);
-          this.sendMobileAwayData(actualTimeAway);
+          if (actualTimeAway >= 60) {
+            this.sendMobileAwayData(actualTimeAway);
+          }
         } else if (!isMobile) {
           // Desktop: Keep existing logic (90-second threshold)
           if (!this.sessionDataSent) {
@@ -920,20 +930,21 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formInteractionTime = Math.round((Date.now() - this.formStartTime) / 1000);
     }
 
-    // Prepare events data (convert to seconds) - same as your existing pattern
-    const events = {
-      session_duration_on_price_section: Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000),
-      session_duration_on_levels_section: Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000),
-      session_duration_on_teachers_section: Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000),
-      session_duration_on_platform_section: Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000),
-      session_duration_on_advisors_section: Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000),
-      session_duration_on_testimonials_section: Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000),
-      session_duration_on_form_section: Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000),
-      session_idle_time_duration: Math.round(this.idleTime.total / 1000),
+    // Prepare events data (convert to seconds and format as MM:SS) - flattened directly into form data
+    const eventsData = {
+      session_duration_on_price_section: this.formatTime(Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000)),
+      session_duration_on_levels_section: this.formatTime(Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000)),
+      session_duration_on_teachers_section: this.formatTime(Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000)),
+      session_duration_on_platform_section: this.formatTime(Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000)),
+      session_duration_on_advisors_section: this.formatTime(Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000)),
+      session_duration_on_testimonials_section: this.formatTime(Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000)),
+      session_duration_on_form_section: this.formatTime(Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000)),
+      session_idle_time_duration: this.formatTime(Math.round(this.idleTime.total / 1000)),
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime,
-      time_away_seconds: timeAwaySeconds // Add the time away data
+      form_interaction_time: this.formatTime(formInteractionTime),
+      time_away_seconds: this.formatTime(timeAwaySeconds), // Add the time away data
+      sections_read_count: this.calculateSectionsReadCount() // Add sections read count
     };
 
     // Check if in development mode
@@ -954,7 +965,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         pageUrl: window.location.href,
         totalSessionTime: Math.floor((Date.now() - this.sessionStartTime) / 1000),
         timeAwaySeconds: timeAwaySeconds,
-        events: events
+        ...eventsData
       });
       return;
     }
@@ -962,7 +973,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // Capture any form selections the user made before leaving
     const userSelections = this.captureUserSelections();
     
-    // Prepare data for ZapierService with user selections
+    // Prepare data for ZapierService with user selections - flattened format
     const formData: FormData = {
       selectedResponse: userSelections.selectedResponse,
       cancelReasons: userSelections.cancelReasons,
@@ -982,13 +993,14 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       trigger: 'user_away_for_60_plus_seconds',
       timestamp: new Date().toISOString(),
       totalSessionTime: Math.floor((Date.now() - this.sessionStartTime) / 1000),
-      events: events,
       userAgent: navigator.userAgent,
       pageUrl: window.location.href,
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
       formInteractionTime: formInteractionTime,
-      description: this.formatAwayAnalyticsDescription(events, timeAwaySeconds, userSelections)
+      description: this.formatAwayAnalyticsDescription(eventsData, timeAwaySeconds, userSelections),
+      // Flatten events data directly into form data
+      ...eventsData
     };
 
     console.log('📡 Sending away analytics via ZapierService:', formData);
@@ -1052,26 +1064,27 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formInteractionTime = Math.round((Date.now() - this.formStartTime) / 1000);
     }
 
-    // Prepare events data (convert to seconds)
-    const events = {
-      session_duration_on_price_section: Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000),
-      session_duration_on_levels_section: Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000),
-      session_duration_on_teachers_section: Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000),
-      session_duration_on_platform_section: Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000),
-      session_duration_on_advisors_section: Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000),
-      session_duration_on_testimonials_section: Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000),
-      session_duration_on_form_section: Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000),
-      session_idle_time_duration: Math.round(this.idleTime.total / 1000),
+    // Prepare events data (convert to seconds and format as MM:SS) - flattened format
+    const eventsData = {
+      session_duration_on_price_section: this.formatTime(Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000)),
+      session_duration_on_levels_section: this.formatTime(Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000)),
+      session_duration_on_teachers_section: this.formatTime(Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000)),
+      session_duration_on_platform_section: this.formatTime(Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000)),
+      session_duration_on_advisors_section: this.formatTime(Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000)),
+      session_duration_on_testimonials_section: this.formatTime(Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000)),
+      session_duration_on_form_section: this.formatTime(Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000)),
+      session_idle_time_duration: this.formatTime(Math.round(this.idleTime.total / 1000)),
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime,
-      time_away_seconds: timeAwaySeconds
+      form_interaction_time: this.formatTime(formInteractionTime),
+      time_away_seconds: this.formatTime(timeAwaySeconds),
+      sections_read_count: this.calculateSectionsReadCount()
     };
 
     // Capture any form selections the user made before leaving
     const userSelections = this.captureUserSelections();
     
-    // Prepare data with captured user selections
+    // Prepare data with captured user selections - flattened format
     const formData = {
       selectedResponse: userSelections.selectedResponse,
       cancelReasons: userSelections.cancelReasons,
@@ -1091,13 +1104,14 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       trigger: 'user_away_for_90_plus_seconds',
       timestamp: new Date().toISOString(),
       totalSessionTime: Math.floor((Date.now() - this.sessionStartTime) / 1000),
-      events: events,
       userAgent: navigator.userAgent,
       pageUrl: window.location.href,
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
       formInteractionTime: formInteractionTime,
-      description: this.formatAwayAnalyticsDescription(events, timeAwaySeconds, this.captureUserSelections())
+      description: this.formatAwayAnalyticsDescription(eventsData, timeAwaySeconds, this.captureUserSelections()),
+      // Flatten events data directly into form data
+      ...eventsData
     };
 
     console.log('📱 Mobile: Sending away analytics via sendBeacon:', formData);
@@ -1126,11 +1140,22 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       params.set('email', formData.email || '');
       params.set('session_id', formData.sessionId || '');
       params.set('trigger', formData.trigger || '');
-      params.set('total_session_time', formData.totalSessionTime?.toString() || '0');
+      params.set('total_session_time', this.formatTime(formData.totalSessionTime || 0));
       params.set('form_started', formData.formStarted?.toString() || 'false');
       params.set('form_submitted', formData.formSubmitted?.toString() || 'false');
-      params.set('form_interaction_time', formData.formInteractionTime?.toString() || '0');
-      params.set('events', JSON.stringify(formData.events));
+      params.set('form_interaction_time', this.formatTime(formData.formInteractionTime || 0));
+      // Add session tracking data to URL parameters
+      params.set('session_duration_on_price_section', formData.session_duration_on_price_section || '00:00');
+      params.set('session_duration_on_levels_section', formData.session_duration_on_levels_section || '00:00');
+      params.set('session_duration_on_teachers_section', formData.session_duration_on_teachers_section || '00:00');
+      params.set('session_duration_on_platform_section', formData.session_duration_on_platform_section || '00:00');
+      params.set('session_duration_on_advisors_section', formData.session_duration_on_advisors_section || '00:00');
+      params.set('session_duration_on_testimonials_section', formData.session_duration_on_testimonials_section || '00:00');
+      params.set('session_duration_on_form_section', formData.session_duration_on_form_section || '00:00');
+      params.set('session_idle_time_duration', formData.session_idle_time_duration || '00:00');
+      params.set('time_away_seconds', formData.time_away_seconds || '00:00');
+      params.set('sections_read_count', formData.sections_read_count?.toString() || '0');
+      // Events data is now flattened directly into the form data
       params.set('submission_date', new Date().toISOString());
       params.set('source_url', window.location.href);
       params.set('user_agent', navigator.userAgent);
@@ -1157,14 +1182,14 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         pricing_response: formData.pricingResponse || '',
         session_id: formData.sessionId || '',
         trigger: formData.trigger || '',
-        form_started: formData.formStarted?.toString() || 'false',
-        form_submitted: formData.formSubmitted?.toString() || 'false',
-        events: formData.events ? JSON.stringify(formData.events) : '',
+        // Analytics fields are now flattened directly into the record data
         submission_date: new Date().toISOString(),
         source_url: window.location.href,
         user_agent: formData.userAgent || '',
         page_url: formData.pageUrl || '',
-        description: formData.description || ''
+        description: formData.description || '',
+        // Flatten analytics fields directly into record data
+        ...eventsData
       };
       
       // Add record parameter as JSON string
@@ -1178,35 +1203,46 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       console.log('📱 Mobile: Record parameter:', JSON.stringify(recordData));
       console.log('📱 Mobile: Record parameter length:', JSON.stringify(recordData).length);
       
-      // Use sendBeacon for reliable delivery on mobile (works even when page is backgrounded)
-      const sent = navigator.sendBeacon(fullUrl);
-      
-      if (sent) {
-        console.log('✅ Mobile: Away analytics successfully sent via sendBeacon');
-        this.sessionDataSent = true; // Mark as sent to prevent duplicates
-        // Clean localStorage after successful analytics send
-        this.clearAllTrackingData();
-      } else {
-        console.error('❌ Mobile: sendBeacon failed to queue the request');
+      // Use fetch with keepalive for immediate sending on mobile (more reliable than sendBeacon)
+      console.log('📱 Mobile: Using fetch with keepalive for immediate sending');
+      try {
+        const response = await fetch(fullUrl, {
+          method: 'GET',
+          keepalive: true,
+          cache: 'no-cache'
+        });
         
-        // Fallback: Try using fetch with keepalive
-        console.log('🔄 Mobile: Trying fetch fallback...');
-        try {
-          const response = await fetch(fullUrl, {
-            method: 'GET',
-            keepalive: true
-          });
+        if (response.ok) {
+          console.log('✅ Mobile: Away analytics successfully sent via fetch (immediate)');
+          this.sessionDataSent = true; // Mark as sent to prevent duplicates
+          // Clean localStorage after successful analytics send
+          this.clearAllTrackingData();
+        } else {
+          console.error('❌ Mobile: Fetch failed:', response.status);
           
-          if (response.ok) {
-            console.log('✅ Mobile: Fallback fetch successful');
+          // Fallback: Try sendBeacon as backup
+          console.log('🔄 Mobile: Trying sendBeacon fallback...');
+          const sent = navigator.sendBeacon(fullUrl);
+          if (sent) {
+            console.log('✅ Mobile: Fallback sendBeacon queued');
             this.sessionDataSent = true;
-            // Clean localStorage after successful fallback send
             this.clearAllTrackingData();
           } else {
-            console.error('❌ Mobile: Fallback fetch failed:', response.status);
+            console.error('❌ Mobile: Both fetch and sendBeacon failed');
           }
-        } catch (fallbackError) {
-          console.error('❌ Mobile: Fallback fetch error:', fallbackError);
+        }
+      } catch (fetchError) {
+        console.error('❌ Mobile: Fetch error:', fetchError);
+        
+        // Fallback: Try sendBeacon as backup
+        console.log('🔄 Mobile: Trying sendBeacon fallback...');
+        const sent = navigator.sendBeacon(fullUrl);
+        if (sent) {
+          console.log('✅ Mobile: Fallback sendBeacon queued');
+          this.sessionDataSent = true;
+          this.clearAllTrackingData();
+        } else {
+          console.error('❌ Mobile: Both fetch and sendBeacon failed');
         }
       }
 
@@ -1215,7 +1251,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  private formatAwayAnalyticsDescription(events: any, timeAwaySeconds: number, userSelections?: any): string {
+  private formatAwayAnalyticsDescription(data: any, timeAwaySeconds: number, userSelections?: any): string {
     let description = `Away Analytics - User Was Away for 90+ Seconds\n\n`;
     
     // Basic information
@@ -1293,13 +1329,25 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       description += `\n`;
     }
     
-    // Analytics data
+    // Analytics data - using flattened analytics fields
     description += `Analytics Events:\n`;
-    Object.keys(events).forEach(key => {
-      const readableKey = this.getReadableEventName(key);
-      const value = events[key];
-      const formattedValue = this.isTimeField(key) ? this.formatTime(value) : value;
-      description += `• ${readableKey}: ${formattedValue}\n`;
+    const analyticsFields = [
+      { key: 'session_duration_on_price_section', label: 'Time spent on Price Section' },
+      { key: 'session_duration_on_levels_section', label: 'Time spent on Levels Section' },
+      { key: 'session_duration_on_teachers_section', label: 'Time spent on Teachers Section' },
+      { key: 'session_duration_on_platform_section', label: 'Time spent on Platform Section' },
+      { key: 'session_duration_on_advisors_section', label: 'Time spent on Advisors Section' },
+      { key: 'session_duration_on_testimonials_section', label: 'Time spent on Testimonials Section' },
+      { key: 'session_duration_on_form_section', label: 'Time spent on Form Section' },
+      { key: 'session_idle_time_duration', label: 'Total Idle Time' }
+    ];
+
+    analyticsFields.forEach(field => {
+      const value = data[field.key];
+      if (value !== undefined && value !== null && value !== '') {
+        // Value is already formatted as MM:SS string, so use it directly
+        description += `• ${field.label}: ${value}\n`;
+      }
     });
     
     description += `\nUser returned to page after being away for: ${this.formatTime(timeAwaySeconds)}`;
@@ -1341,7 +1389,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       session_idle_time_duration: Math.round(this.idleTime.total / 1000),
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime
+      form_interaction_time: this.formatTime(formInteractionTime)
     };
 
     // Determine appointment status based on user's choice
@@ -1385,15 +1433,14 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       session_id: this.sessionId,
       trigger: trigger,
       timestamp: new Date().toISOString(),
-      total_session_time: Math.round((Date.now() - this.sessionStartTime) / 1000),
-      events: events,
+      total_session_time: this.formatTime(Math.round((Date.now() - this.sessionStartTime) / 1000)),
       user_agent: navigator.userAgent,
       page_url: window.location.href,
       
       // Form interaction data
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: this.formStarted && this.formStartTime > 0 ? Math.round((Date.now() - this.formStartTime) / 1000) : 0
+      form_interaction_time: this.formatTime(this.formStarted && this.formStartTime > 0 ? Math.round((Date.now() - this.formStartTime) / 1000) : 0)
     };
 
     // Add formatted description after the object is created
@@ -1442,22 +1489,23 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         formInteractionTime = Math.round((Date.now() - this.formStartTime) / 1000);
       }
 
-      // Prepare events data (convert to seconds)
-      const events = {
-        session_duration_on_price_section: Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000),
-        session_duration_on_levels_section: Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000),
-        session_duration_on_teachers_section: Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000),
-        session_duration_on_platform_section: Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000),
-        session_duration_on_advisors_section: Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000),
-        session_duration_on_testimonials_section: Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000),
-        session_duration_on_form_section: Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000),
-        session_idle_time_duration: Math.round(this.idleTime.total / 1000),
+      // Prepare events data (convert to seconds and format as MM:SS) - flattened format
+      const eventsData = {
+        session_duration_on_price_section: this.formatTime(Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000)),
+        session_duration_on_levels_section: this.formatTime(Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000)),
+        session_duration_on_teachers_section: this.formatTime(Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000)),
+        session_duration_on_platform_section: this.formatTime(Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000)),
+        session_duration_on_advisors_section: this.formatTime(Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000)),
+        session_duration_on_testimonials_section: this.formatTime(Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000)),
+        session_duration_on_form_section: this.formatTime(Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000)),
+        session_idle_time_duration: this.formatTime(Math.round(this.idleTime.total / 1000)),
         form_started: this.formStarted,
         form_submitted: this.formSubmitted,
-        form_interaction_time: formInteractionTime
+        form_interaction_time: this.formatTime(formInteractionTime),
+        sections_read_count: this.calculateSectionsReadCount()
       };
 
-      // Prepare form data in the successful format with analytics
+      // Prepare form data in the successful format with analytics - flattened format
       const formData: FormData = {
         selectedResponse: this.getChoiceEnglish(this.selectedChoice),
         cancelReasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
@@ -1478,12 +1526,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         trigger: 'form_submission',
         timestamp: new Date().toISOString(),
         totalSessionTime: Math.round((Date.now() - this.sessionStartTime) / 1000),
-        events: events,
         userAgent: navigator.userAgent,
         pageUrl: window.location.href,
         formStarted: this.formStarted,
         formSubmitted: this.formSubmitted,
-        formInteractionTime: formInteractionTime
+        formInteractionTime: formInteractionTime,
+        // Flatten events data directly into form data
+        ...eventsData
       };
 
     try {
@@ -1574,22 +1623,23 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formInteractionTime = Math.round((Date.now() - this.formStartTime) / 1000);
     }
 
-    // Prepare events data (convert to seconds)
-    const events = {
-      session_duration_on_price_section: Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000),
-      session_duration_on_levels_section: Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000),
-      session_duration_on_teachers_section: Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000),
-      session_duration_on_platform_section: Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000),
-      session_duration_on_advisors_section: Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000),
-      session_duration_on_testimonials_section: Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000),
-      session_duration_on_form_section: Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000),
-      session_idle_time_duration: Math.round(this.idleTime.total / 1000),
+    // Prepare events data (convert to seconds and format as MM:SS) - flattened format
+    const eventsData = {
+      session_duration_on_price_section: this.formatTime(Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000)),
+      session_duration_on_levels_section: this.formatTime(Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000)),
+      session_duration_on_teachers_section: this.formatTime(Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000)),
+      session_duration_on_platform_section: this.formatTime(Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000)),
+      session_duration_on_advisors_section: this.formatTime(Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000)),
+      session_duration_on_testimonials_section: this.formatTime(Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000)),
+      session_duration_on_form_section: this.formatTime(Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000)),
+      session_idle_time_duration: this.formatTime(Math.round(this.idleTime.total / 1000)),
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime
+      form_interaction_time: this.formatTime(formInteractionTime),
+      sections_read_count: this.calculateSectionsReadCount()
     };
 
-    // Prepare data in the format expected by ZapierService
+    // Prepare data in the format expected by ZapierService - flattened format
     const formData: FormData = {
       selectedResponse: this.getChoiceEnglish(this.selectedChoice),
       cancelReasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
@@ -1609,12 +1659,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       trigger: scenario,
       timestamp: new Date().toISOString(),
       totalSessionTime: Math.round((Date.now() - this.sessionStartTime) / 1000),
-      events: events,
       userAgent: navigator.userAgent,
       pageUrl: window.location.href,
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
-      formInteractionTime: formInteractionTime
+      formInteractionTime: formInteractionTime,
+      // Flatten events data directly into form data
+      ...eventsData
     };
 
     console.log(`📊 SCENARIO DATA (${scenario}):`, formData);
@@ -1640,22 +1691,23 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formInteractionTime = Math.round((Date.now() - this.formStartTime) / 1000);
     }
 
-    // Prepare events data (convert to seconds)
-    const events = {
-      session_duration_on_price_section: Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000),
-      session_duration_on_levels_section: Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000),
-      session_duration_on_teachers_section: Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000),
-      session_duration_on_platform_section: Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000),
-      session_duration_on_advisors_section: Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000),
-      session_duration_on_testimonials_section: Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000),
-      session_duration_on_form_section: Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000),
-      session_idle_time_duration: Math.round(this.idleTime.total / 1000),
+    // Prepare events data (convert to seconds and format as MM:SS) - flattened format
+    const eventsData = {
+      session_duration_on_price_section: this.formatTime(Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000)),
+      session_duration_on_levels_section: this.formatTime(Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000)),
+      session_duration_on_teachers_section: this.formatTime(Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000)),
+      session_duration_on_platform_section: this.formatTime(Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000)),
+      session_duration_on_advisors_section: this.formatTime(Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000)),
+      session_duration_on_testimonials_section: this.formatTime(Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000)),
+      session_duration_on_form_section: this.formatTime(Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000)),
+      session_idle_time_duration: this.formatTime(Math.round(this.idleTime.total / 1000)),
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime
+      form_interaction_time: this.formatTime(formInteractionTime),
+      sections_read_count: this.calculateSectionsReadCount()
     };
 
-    // Prepare minimal data for no-interaction scenario
+    // Prepare minimal data for no-interaction scenario - flattened format
     const formData: FormData = {
       selectedResponse: '', // Empty for no interaction
       cancelReasons: [],
@@ -1675,12 +1727,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       trigger: scenario,
       timestamp: new Date().toISOString(),
       totalSessionTime: Math.round((Date.now() - this.sessionStartTime) / 1000),
-      events: events,
       userAgent: navigator.userAgent,
       pageUrl: window.location.href,
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
-      formInteractionTime: formInteractionTime
+      formInteractionTime: formInteractionTime,
+      // Flatten events data directly into form data
+      ...eventsData
     };
 
     console.log(`📊 MINIMAL DATA (${scenario}):`, formData);
@@ -1700,19 +1753,20 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formInteractionTime = Math.round((Date.now() - this.formStartTime) / 1000);
     }
 
-    // Prepare events data (convert to seconds)
-    const events = {
-      session_duration_on_price_section: Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000),
-      session_duration_on_levels_section: Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000),
-      session_duration_on_teachers_section: Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000),
-      session_duration_on_platform_section: Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000),
-      session_duration_on_advisors_section: Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000),
-      session_duration_on_testimonials_section: Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000),
-      session_duration_on_form_section: Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000),
-      session_idle_time_duration: Math.round(this.idleTime.total / 1000),
+    // Prepare events data (convert to seconds and format as MM:SS) - flattened format
+    const eventsData = {
+      session_duration_on_price_section: this.formatTime(Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000)),
+      session_duration_on_levels_section: this.formatTime(Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000)),
+      session_duration_on_teachers_section: this.formatTime(Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000)),
+      session_duration_on_platform_section: this.formatTime(Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000)),
+      session_duration_on_advisors_section: this.formatTime(Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000)),
+      session_duration_on_testimonials_section: this.formatTime(Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000)),
+      session_duration_on_form_section: this.formatTime(Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000)),
+      session_idle_time_duration: this.formatTime(Math.round(this.idleTime.total / 1000)),
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime
+      form_interaction_time: this.formatTime(formInteractionTime),
+      sections_read_count: this.calculateSectionsReadCount()
     };
 
     // Determine the appropriate response based on what was selected
@@ -1723,7 +1777,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       selectedResponse = 'Confirm Interest';
     }
 
-    // Prepare partial form data
+    // Prepare partial form data - flattened format
     const formData: FormData = {
       selectedResponse: selectedResponse,
       cancelReasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
@@ -1743,12 +1797,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       trigger: scenario,
       timestamp: new Date().toISOString(),
       totalSessionTime: Math.round((Date.now() - this.sessionStartTime) / 1000),
-      events: events,
       userAgent: navigator.userAgent,
       pageUrl: window.location.href,
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
-      formInteractionTime: formInteractionTime
+      formInteractionTime: formInteractionTime,
+      // Flatten events data directly into form data
+      ...eventsData
     };
 
     console.log(`📊 PARTIAL FORM DATA (${scenario}):`, formData);
@@ -1776,7 +1831,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       session_idle_time_duration: Math.round(this.idleTime.total / 1000),
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime
+      form_interaction_time: this.formatTime(formInteractionTime)
     };
 
     // Prepare analytics data for Make.com (Second call)
@@ -1795,15 +1850,14 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       trigger: 'whatsapp_button_clicked',
       session_id: this.sessionId,
       timestamp: new Date().toISOString(),
-      total_session_time: Math.round((Date.now() - this.sessionStartTime) / 1000),
-      events: events,
+      total_session_time: this.formatTime(Math.round((Date.now() - this.sessionStartTime) / 1000)),
       user_agent: navigator.userAgent,
       page_url: window.location.href,
       
       // Form interaction data
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime,
+      form_interaction_time: this.formatTime(formInteractionTime),
       
       // User choice data
       selected_choice: this.selectedChoice,
@@ -1838,7 +1892,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       session_idle_time_duration: Math.round(this.idleTime.total / 1000),
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime
+      form_interaction_time: this.formatTime(formInteractionTime)
     };
 
     // Prepare lead update data with full analytics
@@ -1867,13 +1921,12 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       session_id: this.sessionId,
       trigger: 'form_submission_start',
       timestamp: new Date().toISOString(),
-      total_session_time: Math.round((Date.now() - this.sessionStartTime) / 1000),
-      events: events,
+      total_session_time: this.formatTime(Math.round((Date.now() - this.sessionStartTime) / 1000)),
       user_agent: navigator.userAgent,
       page_url: window.location.href,
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime
+      form_interaction_time: this.formatTime(formInteractionTime)
     };
 
     console.log('📋 LEAD UPDATE DATA:', leadUpdateData);
@@ -1936,7 +1989,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // Session analytics
     description += `\nSession Analytics:\n`;
     description += `Session ID: ${data.session_id}\n`;
-    description += `Total Session Time: ${this.formatTime(data.total_session_time)}\n`;
+    description += `Total Session Time: ${data.total_session_time}\n`;
     description += `Form Started: ${data.form_started ? 'Yes' : 'No'}\n`;
     description += `Form Submitted: ${data.form_submitted ? 'Yes' : 'No'}\n`;
     
@@ -1944,17 +1997,28 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       description += `Form Interaction Time: ${this.formatTime(data.form_interaction_time)}\n`;
     }
     
-    // Section time analytics
+    // Section time analytics - using flattened analytics fields
     description += `\nTime Spent on Sections:\n`;
-    Object.keys(events).forEach(key => {
-      if (key.includes('session_duration_on_') && events[key] > 0) {
-        const sectionName = key.replace('session_duration_on_', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-        description += `• ${sectionName}: ${this.formatTime(events[key])}\n`;
+    const sectionFields = [
+      { key: 'session_duration_on_price_section', label: 'Price Section' },
+      { key: 'session_duration_on_levels_section', label: 'Levels Section' },
+      { key: 'session_duration_on_teachers_section', label: 'Teachers Section' },
+      { key: 'session_duration_on_platform_section', label: 'Platform Section' },
+      { key: 'session_duration_on_advisors_section', label: 'Advisors Section' },
+      { key: 'session_duration_on_testimonials_section', label: 'Testimonials Section' },
+      { key: 'session_duration_on_form_section', label: 'Form Section' }
+    ];
+
+    sectionFields.forEach(field => {
+      const value = data[field.key];
+      if (value && value !== '00:00' && value !== '') {
+        // Value is already formatted as MM:SS string, so use it directly
+        description += `• ${field.label}: ${value}\n`;
       }
     });
     
-    if (events.session_idle_time_duration > 0) {
-      description += `• Idle Time: ${this.formatTime(events.session_idle_time_duration)}\n`;
+    if (data.session_idle_time_duration && data.session_idle_time_duration !== '00:00' && data.session_idle_time_duration !== '') {
+      description += `• Idle Time: ${data.session_idle_time_duration}\n`;
     }
     
     // Campaign data
@@ -1972,9 +2036,38 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   }
 
   private formatTime(seconds: number): string {
+    // Handle NaN, undefined, null, or invalid values
+    if (!seconds || isNaN(seconds) || seconds < 0) {
+      return '00:00';
+    }
+    
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }
+
+  // Calculate number of sections read (15+ seconds)
+  private calculateSectionsReadCount(): number {
+    const sectionMappings = [
+      { field: 'session_duration_on_price_section', timer: '#pricing-section' },
+      { field: 'session_duration_on_levels_section', timer: '#levels-section' },
+      { field: 'session_duration_on_teachers_section', timer: '#teachers-section' },
+      { field: 'session_duration_on_platform_section', timer: '#platform-section' },
+      { field: 'session_duration_on_advisors_section', timer: '#consultants-section' },
+      { field: 'session_duration_on_testimonials_section', timer: '#carousel-section' },
+      { field: 'session_duration_on_form_section', timer: '#form-section' }
+    ];
+
+    let sectionsReadCount = 0;
+    
+    sectionMappings.forEach(mapping => {
+      const timeInSeconds = Math.round((this.sectionTimers[mapping.timer]?.totalTime || 0) / 1000);
+      if (timeInSeconds >= 15) {
+        sectionsReadCount++;
+      }
+    });
+
+    return sectionsReadCount;
   }
 
   private async sendToZapierWithService(zapierData: any) {
@@ -1999,13 +2092,23 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         trigger: zapierData.trigger || '',
         timestamp: zapierData.timestamp || new Date().toISOString(),
         totalSessionTime: zapierData.total_session_time || 0,
-        events: zapierData.events || {},
         userAgent: zapierData.user_agent || navigator.userAgent,
         pageUrl: zapierData.page_url || window.location.href,
         formStarted: zapierData.form_started || false,
         formSubmitted: zapierData.form_submitted || false,
         formInteractionTime: zapierData.form_interaction_time || 0,
-        description: zapierData.description || '' // Add description
+        description: zapierData.description || '', // Add description
+        // Flattened analytics fields
+        session_duration_on_price_section: zapierData.session_duration_on_price_section || '00:00',
+        session_duration_on_levels_section: zapierData.session_duration_on_levels_section || '00:00',
+        session_duration_on_teachers_section: zapierData.session_duration_on_teachers_section || '00:00',
+        session_duration_on_platform_section: zapierData.session_duration_on_platform_section || '00:00',
+        session_duration_on_advisors_section: zapierData.session_duration_on_advisors_section || '00:00',
+        session_duration_on_testimonials_section: zapierData.session_duration_on_testimonials_section || '00:00',
+        session_duration_on_form_section: zapierData.session_duration_on_form_section || '00:00',
+        session_idle_time_duration: zapierData.session_idle_time_duration || '00:00',
+        time_away_seconds: zapierData.time_away_seconds || '00:00',
+        sections_read_count: zapierData.sections_read_count || 0
       };
 
       console.log('📤 Sending to ZapierService with formatted description:', formData);
@@ -2115,19 +2218,27 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       description += `Form Interaction Time: ${this.formatTime(formData.formInteractionTime)}\n`;
     }
     
-    // Section time analytics
-    if (formData.events) {
+    // Section time analytics - using flattened fields
+    const analyticsFields = [
+      { key: 'session_duration_on_price_section', label: 'Price Section' },
+      { key: 'session_duration_on_levels_section', label: 'Levels Section' },
+      { key: 'session_duration_on_teachers_section', label: 'Teachers Section' },
+      { key: 'session_duration_on_platform_section', label: 'Platform Section' },
+      { key: 'session_duration_on_advisors_section', label: 'Advisors Section' },
+      { key: 'session_duration_on_testimonials_section', label: 'Testimonials Section' },
+      { key: 'session_duration_on_form_section', label: 'Form Section' },
+      { key: 'session_idle_time_duration', label: 'Idle Time' }
+    ];
+
+    const hasAnalyticsData = analyticsFields.some(field => (formData as any)[field.key] > 0);
+    if (hasAnalyticsData) {
       description += `\nTime Spent on Sections:\n`;
-      Object.keys(formData.events).forEach(key => {
-        if (key.includes('session_duration_on_') && formData.events[key] > 0) {
-          const sectionName = key.replace('session_duration_on_', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-          description += `• ${sectionName}: ${this.formatTime(formData.events[key])}\n`;
+      analyticsFields.forEach(field => {
+        const value = (formData as any)[field.key];
+        if (value > 0) {
+          description += `• ${field.label}: ${this.formatTime(value)}\n`;
         }
       });
-      
-      if (formData.events.session_idle_time_duration > 0) {
-        description += `• Idle Time: ${this.formatTime(formData.events.session_idle_time_duration)}\n`;
-      }
     }
     
     // Campaign data
@@ -2445,7 +2556,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   startPricingTimer() {
     if (this.pricingSectionVisible && this.pricingStartTime === 0) {
       this.pricingStartTime = Date.now();
-      console.log('Started pricing timer at:', new Date(this.pricingStartTime));
+      console.log('⏱️ Started pricing timer at:', new Date(this.pricingStartTime));
+    } else {
+      console.log('⏱️ Pricing timer not started - pricingSectionVisible:', this.pricingSectionVisible, 'pricingStartTime:', this.pricingStartTime);
     }
     
     // Keep the original popup logic - COMMENTED OUT FOR NOW
@@ -2466,8 +2579,10 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       this.pricingEndTime = Date.now();
       const sessionTime = this.pricingEndTime - this.pricingStartTime;
       this.totalPricingTime += sessionTime;
-      console.log('Stopped pricing timer. Session time:', sessionTime, 'ms. Total time:', this.totalPricingTime, 'ms');
+      console.log('⏹️ Stopped pricing timer. Session time:', sessionTime, 'ms. Total time:', this.totalPricingTime, 'ms');
       this.pricingStartTime = 0; // Reset for next session
+    } else {
+      console.log('⏹️ Pricing timer not stopped - pricingStartTime:', this.pricingStartTime);
     }
     
     // Keep the original timer clearing logic - COMMENTED OUT FOR NOW
@@ -2887,22 +3002,23 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formInteractionTime = Math.round((Date.now() - this.formStartTime) / 1000);
     }
 
-    // Prepare events data (convert to seconds)
-    const events = {
-      session_duration_on_price_section: Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000),
-      session_duration_on_levels_section: Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000),
-      session_duration_on_teachers_section: Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000),
-      session_duration_on_platform_section: Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000),
-      session_duration_on_advisors_section: Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000),
-      session_duration_on_testimonials_section: Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000),
-      session_duration_on_form_section: Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000),
-      session_idle_time_duration: Math.round(this.idleTime.total / 1000),
+    // Prepare events data (convert to seconds and format as MM:SS) - flattened format
+    const eventsData = {
+      session_duration_on_price_section: this.formatTime(Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000)),
+      session_duration_on_levels_section: this.formatTime(Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000)),
+      session_duration_on_teachers_section: this.formatTime(Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000)),
+      session_duration_on_platform_section: this.formatTime(Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000)),
+      session_duration_on_advisors_section: this.formatTime(Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000)),
+      session_duration_on_testimonials_section: this.formatTime(Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000)),
+      session_duration_on_form_section: this.formatTime(Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000)),
+      session_idle_time_duration: this.formatTime(Math.round(this.idleTime.total / 1000)),
       form_started: this.formStarted,
       form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime
+      form_interaction_time: this.formatTime(formInteractionTime),
+      sections_read_count: this.calculateSectionsReadCount()
     };
 
-    // Prepare session data for Zapier
+    // Prepare session data for Zapier - flattened format
     const sessionData = {
       // Lead identification (from previous form)
       lead_email: this.urlParams.email,
@@ -2918,28 +3034,45 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       session_id: this.sessionId,
       trigger: 'idle_popup_leave',
       timestamp: new Date().toISOString(),
-      total_session_time: Math.round((Date.now() - this.sessionStartTime) / 1000),
+      total_session_time: this.formatTime(Math.round((Date.now() - this.sessionStartTime) / 1000)),
       interaction_level: interactionLevel,
-      events: events,
       user_agent: navigator.userAgent,
       page_url: window.location.href,
-      
-      // Form interaction data
-      form_started: this.formStarted,
-      form_submitted: this.formSubmitted,
-      form_interaction_time: formInteractionTime,
       
       // User choice data (if any)
       selected_choice: this.selectedChoice || 'no_choice',
       cancellation_reasons: this.selectedCancellationReasons,
       subscription_preference: this.selectedSubscription,
       preferred_start_time: this.selectedStartTime,
-      payment_method_available: this.selectedPayment
+      payment_method_available: this.selectedPayment,
+      
+      // Flatten events data directly into session data
+      ...eventsData
     };
 
     console.log('📊 Sending session data to Zapier:', sessionData);
     
     // Send to Zapier webhook
     this.sendToZapier(sessionData);
+  }
+
+  // Validation method for cancel form
+  isCancelFormValid(): boolean {
+    // Check if at least one cancellation reason is selected
+    if (this.selectedCancellationReasons.length === 0) {
+      return false;
+    }
+    
+    // If "other reason" is selected, require text input
+    if (this.selectedCancellationReasons.includes('other') && (!this.otherCancellationReason || this.otherCancellationReason.trim() === '')) {
+      return false;
+    }
+    
+    // Require subscription preference
+    if (!this.selectedSubscription) {
+      return false;
+    }
+    
+    return true;
   }
 }

@@ -22,13 +22,23 @@ export interface FormData {
   trigger?: string;
   timestamp?: string;
   totalSessionTime?: number;
-  events?: any;
   userAgent?: string;
   pageUrl?: string;
   formStarted?: boolean;
   formSubmitted?: boolean;
   formInteractionTime?: number;
   description?: string;
+  // Flattened analytics fields (formatted as MM:SS strings)
+  session_duration_on_price_section?: string;
+  session_duration_on_levels_section?: string;
+  session_duration_on_teachers_section?: string;
+  session_duration_on_platform_section?: string;
+  session_duration_on_advisors_section?: string;
+  session_duration_on_testimonials_section?: string;
+  session_duration_on_form_section?: string;
+  session_idle_time_duration?: string;
+  time_away_seconds?: string;
+  sections_read_count?: number;
 }
 
 export interface LeadFormData {
@@ -259,14 +269,45 @@ export class ZapierService {
       // Analytics data
       if (formData.sessionId) params.set('session_id', formData.sessionId);
       if (formData.trigger) params.set('trigger', formData.trigger);
-      if (formData.totalSessionTime) params.set('total_session_time', formData.totalSessionTime.toString());
+      if (formData.totalSessionTime) params.set('total_session_time', this.formatTime(formData.totalSessionTime));
       if (formData.formStarted !== undefined) params.set('form_started', formData.formStarted.toString());
       if (formData.formSubmitted !== undefined) params.set('form_submitted', formData.formSubmitted.toString());
-      if (formData.formInteractionTime) params.set('form_interaction_time', formData.formInteractionTime.toString());
+      if (formData.formInteractionTime) params.set('form_interaction_time', this.formatTime(formData.formInteractionTime));
       
-      // Events data (convert to JSON string for URL parameter)
-      if (formData.events) {
-        params.set('events', JSON.stringify(formData.events));
+      // Add flattened analytics fields directly to URL parameters (already formatted as MM:SS)
+      if (formData.session_duration_on_price_section !== undefined) {
+        params.set('session_duration_on_price_section', formData.session_duration_on_price_section);
+      }
+      if (formData.session_duration_on_levels_section !== undefined) {
+        params.set('session_duration_on_levels_section', formData.session_duration_on_levels_section);
+      }
+      if (formData.session_duration_on_teachers_section !== undefined) {
+        params.set('session_duration_on_teachers_section', formData.session_duration_on_teachers_section);
+      }
+      if (formData.session_duration_on_platform_section !== undefined) {
+        params.set('session_duration_on_platform_section', formData.session_duration_on_platform_section);
+      }
+      if (formData.session_duration_on_advisors_section !== undefined) {
+        params.set('session_duration_on_advisors_section', formData.session_duration_on_advisors_section);
+      }
+      if (formData.session_duration_on_testimonials_section !== undefined) {
+        params.set('session_duration_on_testimonials_section', formData.session_duration_on_testimonials_section);
+      }
+      if (formData.session_duration_on_form_section !== undefined) {
+        params.set('session_duration_on_form_section', formData.session_duration_on_form_section);
+      }
+      if (formData.session_idle_time_duration !== undefined) {
+        params.set('session_idle_time_duration', formData.session_idle_time_duration);
+      }
+      if (formData.time_away_seconds !== undefined) {
+        params.set('time_away_seconds', formData.time_away_seconds);
+      }
+      if (formData.sections_read_count !== undefined) {
+        params.set('sections_read_count', formData.sections_read_count.toString());
+      } else {
+        // Calculate sections read count if not provided
+        const sectionsReadCount = this.calculateSectionsReadCount(formData);
+        params.set('sections_read_count', sectionsReadCount.toString());
       }
       
       // Additional metadata
@@ -281,8 +322,8 @@ export class ZapierService {
       params.set('notes', description); // Alternative field name
       params.set('comments', description); // Alternative field name
       
-      // Add record parameter for Make.com compatibility
-      const recordData = {
+      // Create flattened record data for Make.com compatibility
+      const recordData: { [key: string]: any } = {
         first_name: formData.name || 'Prospect',
         last_name: 'Nevys',
         company: 'Nevy\'s Language Prospect',
@@ -299,15 +340,52 @@ export class ZapierService {
         pricing_response: formData.pricingResponse || '',
         session_id: formData.sessionId || '',
         trigger: formData.trigger || '',
-        form_started: formData.formStarted?.toString() || 'false',
-        form_submitted: formData.formSubmitted?.toString() || 'false',
-        events: formData.events ? JSON.stringify(formData.events) : '',
+        total_session_time: this.formatTime(formData.totalSessionTime || 0),
+        form_started: formData.formStarted || false,
+        form_submitted: formData.formSubmitted || false,
+        form_interaction_time: this.formatTime(formData.formInteractionTime || 0),
         submission_date: new Date().toISOString(),
         source_url: window.location.href,
         user_agent: formData.userAgent || '',
         page_url: formData.pageUrl || '',
         description: description
       };
+
+      // Add flattened analytics fields to record data (already formatted as MM:SS)
+      if (formData.session_duration_on_price_section !== undefined) {
+        recordData['session_duration_on_price_section'] = formData.session_duration_on_price_section;
+      }
+      if (formData.session_duration_on_levels_section !== undefined) {
+        recordData['session_duration_on_levels_section'] = formData.session_duration_on_levels_section;
+      }
+      if (formData.session_duration_on_teachers_section !== undefined) {
+        recordData['session_duration_on_teachers_section'] = formData.session_duration_on_teachers_section;
+      }
+      if (formData.session_duration_on_platform_section !== undefined) {
+        recordData['session_duration_on_platform_section'] = formData.session_duration_on_platform_section;
+      }
+      if (formData.session_duration_on_advisors_section !== undefined) {
+        recordData['session_duration_on_advisors_section'] = formData.session_duration_on_advisors_section;
+      }
+      if (formData.session_duration_on_testimonials_section !== undefined) {
+        recordData['session_duration_on_testimonials_section'] = formData.session_duration_on_testimonials_section;
+      }
+      if (formData.session_duration_on_form_section !== undefined) {
+        recordData['session_duration_on_form_section'] = formData.session_duration_on_form_section;
+      }
+      if (formData.session_idle_time_duration !== undefined) {
+        recordData['session_idle_time_duration'] = formData.session_idle_time_duration;
+      }
+      if (formData.time_away_seconds !== undefined) {
+        recordData['time_away_seconds'] = formData.time_away_seconds;
+      }
+      if (formData.sections_read_count !== undefined) {
+        recordData['sections_read_count'] = formData.sections_read_count;
+      } else {
+        // Calculate sections read count if not provided
+        const sectionsReadCount = this.calculateSectionsReadCount(formData);
+        recordData['sections_read_count'] = sectionsReadCount;
+      }
       
       // Add record parameter as JSON string
       params.set('record', JSON.stringify(recordData));
@@ -318,6 +396,7 @@ export class ZapierService {
       console.log('Description length:', description.length);
       console.log('Full URL being sent:', `${this.CONFIRMATION_WEBHOOK_URL}?${params.toString()}`);
       console.log('🔍 DEBUG - All parameters being sent:', params.toString());
+      console.log('🔍 DEBUG - Flattened record data:', recordData);
 
       // Send as GET request with query parameters (expect plain text)
       const response = await this.http.get(`${this.CONFIRMATION_WEBHOOK_URL}?${params.toString()}`, { responseType: 'text' as const }).toPromise();
@@ -438,14 +517,28 @@ export class ZapierService {
       description += `Form Interaction Time: ${this.formatTime(formData.formInteractionTime)}\n`;
     }
     
-    if (formData.events) {
+    // Add flattened analytics fields to description
+    const analyticsFields = [
+      { key: 'session_duration_on_price_section', label: 'Time spent on Price Section' },
+      { key: 'session_duration_on_levels_section', label: 'Time spent on Levels Section' },
+      { key: 'session_duration_on_teachers_section', label: 'Time spent on Teachers Section' },
+      { key: 'session_duration_on_platform_section', label: 'Time spent on Platform Section' },
+      { key: 'session_duration_on_advisors_section', label: 'Time spent on Advisors Section' },
+      { key: 'session_duration_on_testimonials_section', label: 'Time spent on Testimonials Section' },
+      { key: 'session_duration_on_form_section', label: 'Time spent on Form Section' },
+      { key: 'session_idle_time_duration', label: 'Total Idle Time' },
+      { key: 'time_away_seconds', label: 'Time Away (seconds)' }
+    ];
+
+    const hasAnalyticsData = analyticsFields.some(field => (formData as any)[field.key] !== undefined);
+    if (hasAnalyticsData) {
       description += `\nAnalytics Events:\n`;
-      Object.keys(formData.events).forEach(key => {
-        const readableKey = this.getReadableEventName(key);
-        const value = formData.events[key];
-        // Format time-related fields with mm:ss format, keep boolean values as is
-        const formattedValue = this.isTimeField(key) ? this.formatTime(value) : value;
-        description += `• ${readableKey}: ${formattedValue}\n`;
+      analyticsFields.forEach(field => {
+        const value = (formData as any)[field.key];
+        if (value !== undefined && value !== null && value !== '') {
+          // Value is already formatted as MM:SS string, so use it directly
+          description += `• ${field.label}: ${value}\n`;
+        }
       });
     }
     
@@ -495,6 +588,47 @@ export class ZapierService {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }
+
+  // Calculate number of sections read (15+ seconds)
+  private calculateSectionsReadCount(formData: FormData): number {
+    const sectionFields = [
+      'session_duration_on_price_section',
+      'session_duration_on_levels_section', 
+      'session_duration_on_teachers_section',
+      'session_duration_on_platform_section',
+      'session_duration_on_advisors_section',
+      'session_duration_on_testimonials_section',
+      'session_duration_on_form_section'
+    ];
+
+    let sectionsReadCount = 0;
+    
+    sectionFields.forEach(field => {
+      const timeValue = (formData as any)[field];
+      if (timeValue) {
+        // Convert MM:SS format back to seconds for comparison
+        const timeInSeconds = this.parseTimeToSeconds(timeValue);
+        if (timeInSeconds >= 15) {
+          sectionsReadCount++;
+        }
+      }
+    });
+
+    return sectionsReadCount;
+  }
+
+  // Parse MM:SS format back to seconds
+  private parseTimeToSeconds(timeString: string): number {
+    if (!timeString || typeof timeString !== 'string') return 0;
+    
+    const parts = timeString.split(':');
+    if (parts.length !== 2) return 0;
+    
+    const minutes = parseInt(parts[0], 10) || 0;
+    const seconds = parseInt(parts[1], 10) || 0;
+    
+    return minutes * 60 + seconds;
   }
 
   // Get appointment status based on user response (using same logic as confirmation page)
