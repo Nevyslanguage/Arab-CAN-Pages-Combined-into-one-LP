@@ -17,6 +17,10 @@ export interface FormData {
   adsetName?: string;
   adName?: string;
   fbClickId?: string;
+  assignedRepName?: string;
+  assignedRepPhone?: string;
+  assignedTo?: string;
+  redirectLink?: string;
   // Analytics data
   sessionId?: string;
   trigger?: string;
@@ -39,6 +43,7 @@ export interface FormData {
   session_idle_time_duration?: string;
   time_away_seconds?: string;
   sections_read_count?: number;
+  lead_status?: string;
 }
 
 export interface LeadFormData {
@@ -71,11 +76,46 @@ export class ZapierService {
   private readonly LEAD_FORM_WEBHOOK_URL = 'https://hook.us1.make.com/bsfdoly1dekmske3r620ydu5p3d3hnor';
   private readonly CONFIRMATION_WEBHOOK_URL = 'https://hook.us1.make.com/uc37wscl0r75np86zrss260m9mecyubf';
 
-  constructor(private http: HttpClient) {}
+  // Sales reps data for round-robin assignment
+  private readonly salesReps = [
+    { name: 'Mays N.', phone: '+16473628449' },
+    { name: 'Hala M.', phone: '+16473654860' }
+  ];
+  
+  // Round-robin counter (stored in localStorage for persistence across sessions)
+  private currentRepIndex: number = 0;
+
+  constructor(private http: HttpClient) {
+    this.initializeRepIndex();
+  }
+
+  // Initialize the rep index from localStorage or start at 0
+  private initializeRepIndex(): void {
+    const storedIndex = localStorage.getItem('currentRepIndex');
+    this.currentRepIndex = storedIndex ? parseInt(storedIndex, 10) : 0;
+  }
+
+  // Get the next sales rep in round-robin fashion
+  private getNextSalesRep(): { name: string; phone: string } {
+    const rep = this.salesReps[this.currentRepIndex];
+    
+    // Move to next rep for next assignment
+    this.currentRepIndex = (this.currentRepIndex + 1) % this.salesReps.length;
+    
+    // Persist the new index to localStorage
+    localStorage.setItem('currentRepIndex', this.currentRepIndex.toString());
+    
+    console.log(`🎯 Sales Rep Assignment: ${rep.name} (${rep.phone}) - Next index: ${this.currentRepIndex}`);
+    
+    return rep;
+  }
 
   // Send lead form data to Zapier webhook
-  async sendLeadFormToZapier(leadFormData: LeadFormData): Promise<any> {
+  async sendLeadFormToZapier(leadFormData: LeadFormData): Promise<{ response: any; assignedRep: { name: string; phone: string } }> {
     try {
+      // Assign sales rep using round-robin
+      const assignedRep = this.getNextSalesRep();
+      
       // Create URL parameters for the webhook
       const params = new URLSearchParams();
       
@@ -86,6 +126,10 @@ export class ZapierService {
       params.set('lead_source', 'Arabic Lead Form');
       params.set('status', 'New');
       params.set('email', leadFormData.email || '');
+      
+      // Sales rep assignment
+      params.set('assigned_rep_name', assignedRep.name);
+      params.set('assigned_rep_phone', assignedRep.phone);
       
       // Lead form specific fields
       params.set('english_lessons_history', leadFormData.englishLessonsHistory || '');
@@ -130,7 +174,7 @@ export class ZapierService {
       if (leadFormData.userAgent) params.set('user_agent', leadFormData.userAgent);
       
       // Formatted description for Salesforce
-      const description = this.formatLeadFormDataForDescription(leadFormData);
+      const description = this.formatLeadFormDataForDescription(leadFormData, assignedRep);
       params.set('description', description);
       params.set('notes', description);
       params.set('comments', description);
@@ -155,6 +199,8 @@ export class ZapierService {
         adset_name: leadFormData.adsetName || '',
         ad_name: leadFormData.adName || '',
         fb_click_id: leadFormData.fbClickId || '',
+        assigned_rep_name: assignedRep.name,
+        assigned_rep_phone: assignedRep.phone,
         submission_date: new Date().toISOString(),
         source_url: window.location.href,
         user_agent: leadFormData.userAgent || '',
@@ -167,6 +213,7 @@ export class ZapierService {
       // Debug logging
       console.log('=== LEAD FORM ZAPIER DEBUG ===');
       console.log('Lead form data being sent:', leadFormData);
+      console.log('Assigned sales rep:', assignedRep);
       console.log('Description being sent:', description);
       console.log('Full URL being sent:', `${this.LEAD_FORM_WEBHOOK_URL}?${params.toString()}`);
       console.log('All parameters being sent:', params.toString());
@@ -181,6 +228,8 @@ export class ZapierService {
         'Phone': leadFormData.phone,
         'WhatsApp Same': leadFormData.whatsappSame,
         'WhatsApp Number': leadFormData.whatsappNumber,
+        'Assigned Rep Name': assignedRep.name,
+        'Assigned Rep Phone': assignedRep.phone,
         'Campaign Name': leadFormData.campaignName,
         'Adset Name': leadFormData.adsetName,
         'Ad Name': leadFormData.adName,
@@ -189,7 +238,7 @@ export class ZapierService {
 
       // Send as GET request with query parameters (expect plain text)
       const response = await this.http.get(`${this.LEAD_FORM_WEBHOOK_URL}?${params.toString()}`, { responseType: 'text' as const }).toPromise();
-      return response;
+      return { response, assignedRep };
     } catch (error) {
       console.error('Error sending lead form to Zapier:', error);
       throw error;
@@ -213,12 +262,22 @@ export class ZapierService {
       const appointmentStatus = this.getAppointmentStatus(formData.selectedResponse, formData.formSubmitted, formData.formStarted);
       params.set('appointment_status', appointmentStatus);
       
-      // Debug appointment status calculation
+      // Lead status based on appointment status and marketing consent
+      const leadStatus = this.getLeadStatus(appointmentStatus, formData.marketingConsent);
+      params.set('lead_status', leadStatus);
+      
+      // Debug appointment status and lead status calculation
       console.log('🔍 APPOINTMENT STATUS DEBUG:', {
         selectedResponse: formData.selectedResponse,
         formSubmitted: formData.formSubmitted,
         formStarted: formData.formStarted,
         calculatedStatus: appointmentStatus
+      });
+      
+      console.log('🔍 LEAD STATUS DEBUG:', {
+        appointmentStatus: appointmentStatus,
+        marketingConsent: formData.marketingConsent,
+        calculatedLeadStatus: leadStatus
       });
       
       // Form responses
@@ -253,9 +312,9 @@ export class ZapierService {
       params.set('marketing_consent', formData.marketingConsent);
       params.set('english_impact', formData.englishImpact);
       params.set('preferred_start_time', formData.preferredStartTime);
-      params.set('start_time_preference', formData.preferredStartTime); // Alternative field name
-      params.set('projected_start_time', formData.preferredStartTime); // Alternative field name
-      params.set('when_to_start', formData.preferredStartTime); // Alternative field name
+      // params.set('start_time_preference', formData.preferredStartTime); // Alternative field name
+      // params.set('projected_start_time', formData.preferredStartTime); // Alternative field name
+      // params.set('when_to_start', formData.preferredStartTime); // Alternative field name
       params.set('payment_readiness', formData.paymentReadiness);
       params.set('pricing_response', formData.pricingResponse);
       
@@ -265,6 +324,12 @@ export class ZapierService {
       if (formData.adsetName) params.set('adset_name', formData.adsetName);
       if (formData.adName) params.set('ad_name', formData.adName);
       if (formData.fbClickId) params.set('fb_click_id', formData.fbClickId);
+      
+      // Assigned sales rep data
+      if (formData.assignedRepName) params.set('assigned_rep_name', formData.assignedRepName);
+      if (formData.assignedRepPhone) params.set('assigned_rep_phone', formData.assignedRepPhone);
+      if (formData.assignedTo) params.set('assigned_to', formData.assignedTo);
+      if (formData.redirectLink) params.set('redirect_link', formData.redirectLink);
       
       // Analytics data
       if (formData.sessionId) params.set('session_id', formData.sessionId);
@@ -331,6 +396,7 @@ export class ZapierService {
         status: 'New',
         email: formData.email || '',
         appointment_status: this.getAppointmentStatus(formData.selectedResponse, formData.formSubmitted, formData.formStarted),
+        lead_status: this.getLeadStatus(this.getAppointmentStatus(formData.selectedResponse, formData.formSubmitted, formData.formStarted), formData.marketingConsent),
         response_type: formData.selectedResponse,
         cancel_reasons: formData.cancelReasons?.join(', ') || '',
         marketing_consent: formData.marketingConsent || '',
@@ -338,6 +404,10 @@ export class ZapierService {
         preferred_start_time: formData.preferredStartTime || '',
         payment_readiness: formData.paymentReadiness || '',
         pricing_response: formData.pricingResponse || '',
+        assigned_rep_name: formData.assignedRepName || '',
+        assigned_rep_phone: formData.assignedRepPhone || '',
+        assigned_to: formData.assignedTo || '',
+        redirect_link: formData.redirectLink || '',
         session_id: formData.sessionId || '',
         trigger: formData.trigger || '',
         total_session_time: this.formatTime(formData.totalSessionTime || 0),
@@ -408,7 +478,7 @@ export class ZapierService {
   }
 
   // Format lead form data into a readable description
-  private formatLeadFormDataForDescription(leadFormData: LeadFormData): string {
+  private formatLeadFormDataForDescription(leadFormData: LeadFormData, assignedRep?: { name: string; phone: string }): string {
     let description = `Arabic Lead Form Submission Details:\n\n`;
     
     description += `Name: ${leadFormData.name || 'Not provided'}\n`;
@@ -425,6 +495,11 @@ export class ZapierService {
     description += `Best Time to Contact: ${leadFormData.availability || 'Not provided'}\n`;
     description += `Detailed Contact Time: ${leadFormData.specificTimeSlot || 'Not provided'}\n`;
     description += `Province: ${leadFormData.province || 'Not provided'}\n`;
+    
+    // Assigned sales rep
+    if (assignedRep) {
+      description += `\nAssigned Sales Rep: ${assignedRep.name} (${assignedRep.phone})\n`;
+    }
     
     // Facebook campaign data
     if (leadFormData.campaignName) {
@@ -662,6 +737,32 @@ export class ZapierService {
       }
     }
     
+    return '';
+  }
+
+  // Get lead status based on appointment status and marketing consent
+  private getLeadStatus(appointmentStatus: string, marketingConsent: string): string {
+    // If appointment status is cancelled and marketing consent is yes
+    if (appointmentStatus === 'Cancelled' && marketingConsent === 'yes') {
+      return 'Closed - Newsletter list';
+    }
+    
+    // If appointment status is cancelled and marketing consent is no
+    if (appointmentStatus === 'Cancelled' && marketingConsent === 'no') {
+      return 'Closed - Not Converted';
+    }
+    
+    // If appointment status is confirmed
+    if (appointmentStatus === 'Confirmed') {
+      return 'Open - Not Contacted';
+    }
+    
+    // If appointment status is "Started Confirming but dropped out"
+    if (appointmentStatus === 'Started Confirming but dropped out') {
+      return 'Open - Not Contacted';
+    }
+    
+    // For all other cases, return empty (as requested)
     return '';
   }
 }

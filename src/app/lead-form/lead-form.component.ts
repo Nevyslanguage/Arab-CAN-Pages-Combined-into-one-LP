@@ -246,25 +246,27 @@ export class LeadFormComponent implements OnInit {
       });
       
       // Send to Zapier webhook using ZapierService
-      await this.zapierService.sendLeadFormToZapier(leadFormData);
+      const zapierResult = await this.zapierService.sendLeadFormToZapier(leadFormData);
       
       console.log('Lead form data successfully sent to webhook');
+      console.log('Assigned sales rep:', zapierResult.assignedRep);
       
-      // Navigate to confirmation page after successful submission
-      this.navigateToConfirmation(formData);
+      // Navigate to confirmation page after successful submission with assigned rep
+      this.navigateToConfirmation(formData, zapierResult.assignedRep);
       
     } catch (error) {
       console.error('Error sending lead form to webhook:', error);
       
       // Still navigate to confirmation page even if webhook fails
       // This ensures the user experience isn't broken
-      this.navigateToConfirmation(formData);
+      // We'll pass null for assigned rep since the assignment failed
+      this.navigateToConfirmation(formData, null);
     }
   }
 
   // Navigate to confirmation page with parameters
-  navigateToConfirmation(formData: any) {
-    const queryParams = {
+  navigateToConfirmation(formData: any, assignedRep?: { name: string; phone: string } | null) {
+    const queryParams: any = {
       name: formData.name || '',
       email: formData.email || '',
       Campaign_name: formData.campaignName || '',
@@ -273,7 +275,14 @@ export class LeadFormComponent implements OnInit {
       fbclid: formData.fbClickId || ''
     };
     
+    // Add assigned rep data if available
+    if (assignedRep) {
+      queryParams.assigned_rep_name = assignedRep.name;
+      queryParams.assigned_rep_phone = assignedRep.phone;
+    }
+    
     console.log('Navigating to confirmation page with params:', queryParams);
+    console.log('Assigned rep being passed:', assignedRep);
     
     this.router.navigate(['/confirmation'], { queryParams });
   }

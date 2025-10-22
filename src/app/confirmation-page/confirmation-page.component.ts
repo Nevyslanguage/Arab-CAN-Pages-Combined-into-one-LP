@@ -81,7 +81,12 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     adsetName?: string;
     adName?: string;
     fbClickId?: string;
+    assignedRepName?: string;
+    assignedRepPhone?: string;
   } = {};
+  
+  // Redirect link for webhook data
+  private redirectLink: string = '';
   
   // Section to event mapping
   private sectionEvents: { [key: string]: string } = {
@@ -291,7 +296,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       campaignName: urlParams.get('Campaign_name') || undefined,
       adsetName: urlParams.get('Adset_name') || undefined,
       adName: urlParams.get('Ad_name') || undefined,
-      fbClickId: urlParams.get('fbclid') || undefined
+      fbClickId: urlParams.get('fbclid') || undefined,
+      assignedRepName: urlParams.get('assigned_rep_name') || undefined,
+      assignedRepPhone: urlParams.get('assigned_rep_phone') || undefined
     };
     
     console.log('🔗 URL Parameters extracted:', {
@@ -299,6 +306,14 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       fullUrl: window.location.href,
       searchParams: window.location.search
     });
+    
+    // Log assigned rep information if available
+    if (this.urlParams.assignedRepName) {
+      console.log('🎯 Assigned Sales Rep received:', {
+        name: this.urlParams.assignedRepName,
+        phone: this.urlParams.assignedRepPhone
+      });
+    }
   }
 
   private initializeTracking() {
@@ -803,8 +818,17 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         if (isMobile) {
           // Mobile: Send session data when closing page (same as desktop)
           console.log('📱 Mobile: beforeunload - Sending session data as user closes page');
+          console.log('📱 Mobile: sessionDataSent status:', this.sessionDataSent);
+          
+          // For mobile page close, always send data regardless of sessionDataSent status
+          // This ensures we capture the final form state when user actually closes the page
           if (!this.sessionDataSent) {
+            console.log('📱 Mobile: Sending data via sendDataForSession');
             this.sendDataForSession('user_closed_page');
+          } else {
+            console.log('📱 Mobile: Data already sent, but sending final form state via direct method');
+            // Send complete session data directly without sessionDataSent check
+            this.sendCompleteSessionDataForMobile('user_closed_page');
           }
           
           // Also send away analytics if user was away for significant time
@@ -1129,6 +1153,17 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       const appointmentStatus = this.getAppointmentStatusForAway(formData.selectedResponse, formData.formSubmitted, formData.formStarted);
       params.set('appointment_status', appointmentStatus);
       
+      // Calculate lead status based on appointment status and marketing consent
+      const leadStatus = this.getLeadStatusForMobile(appointmentStatus, formData.marketingConsent);
+      params.set('lead_status', leadStatus);
+      
+      // Debug lead status calculation
+      console.log('🔍 MOBILE LEAD STATUS DEBUG:', {
+        appointmentStatus: appointmentStatus,
+        marketingConsent: formData.marketingConsent,
+        calculatedLeadStatus: leadStatus
+      });
+      
       params.set('response_type', formData.selectedResponse);
       params.set('cancel_reasons', formData.cancelReasons?.join(', ') || '');
       params.set('other_reason', formData.otherReason || '');
@@ -1173,6 +1208,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         status: 'New',
         email: formData.email || '',
         appointment_status: appointmentStatus,
+        lead_status: leadStatus,
         response_type: formData.selectedResponse,
         cancel_reasons: formData.cancelReasons?.join(', ') || '',
         marketing_consent: formData.marketingConsent || '',
@@ -1412,6 +1448,12 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       lead_email: this.urlParams.email,
       lead_name: this.urlParams.name,
       
+      // Assigned sales rep data
+      assigned_rep_name: this.urlParams.assignedRepName,
+      assigned_rep_phone: this.urlParams.assignedRepPhone,
+      assigned_to: this.urlParams.assignedRepName || '',
+      redirect_link: this.redirectLink || '',
+      
       // Campaign tracking data
       campaign_name: this.urlParams.campaignName,
       adset_name: this.urlParams.adsetName,
@@ -1521,6 +1563,10 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         adsetName: this.urlParams.adsetName,
         adName: this.urlParams.adName,
         fbClickId: this.urlParams.fbClickId,
+        assignedRepName: this.urlParams.assignedRepName,
+        assignedRepPhone: this.urlParams.assignedRepPhone,
+        assignedTo: this.urlParams.assignedRepName || '',
+        redirectLink: this.redirectLink || '',
         // Analytics data
         sessionId: this.sessionId,
         trigger: 'form_submission',
@@ -1667,6 +1713,22 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       // Flatten events data directly into form data
       ...eventsData
     };
+
+    // Only include assigned rep data when user confirms (not for cancellations or other scenarios)
+    if (this.selectedChoice === 'confirm' && (scenario === 'user_confirmed' || scenario === 'user_confirmed_whatsapp')) {
+      formData.assignedRepName = this.urlParams.assignedRepName;
+      formData.assignedRepPhone = this.urlParams.assignedRepPhone;
+      formData.assignedTo = this.urlParams.assignedRepName || '';
+      formData.redirectLink = this.redirectLink || '';
+      
+      console.log('🎯 Including assigned rep data for confirmation:', {
+        assignedRepName: this.urlParams.assignedRepName,
+        assignedRepPhone: this.urlParams.assignedRepPhone,
+        redirectLink: this.redirectLink
+      });
+    } else {
+      console.log('🚫 Not including assigned rep data for scenario:', scenario, 'choice:', this.selectedChoice);
+    }
 
     console.log(`📊 SCENARIO DATA (${scenario}):`, formData);
     console.log(`🔍 Current form state:`, {
@@ -2173,6 +2235,32 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     return '';
   }
 
+  // Get lead status for mobile (same logic as ZapierService)
+  private getLeadStatusForMobile(appointmentStatus: string, marketingConsent: string): string {
+    // If appointment status is cancelled and marketing consent is yes
+    if (appointmentStatus === 'Cancelled' && marketingConsent === 'yes') {
+      return 'Closed - Newsletter list';
+    }
+    
+    // If appointment status is cancelled and marketing consent is no
+    if (appointmentStatus === 'Cancelled' && marketingConsent === 'no') {
+      return 'Closed - Not Converted';
+    }
+    
+    // If appointment status is confirmed
+    if (appointmentStatus === 'Confirmed') {
+      return 'Open - Not Contacted';
+    }
+    
+    // If appointment status is "Started Confirming but dropped out"
+    if (appointmentStatus === 'Started Confirming but dropped out') {
+      return 'Open - Not Contacted';
+    }
+    
+    // For all other cases, return empty (as requested)
+    return '';
+  }
+
   private formatFormDataForDescription(formData: any): string {
     let description = `Confirmation Page Analytics - User Left Page\n\n`;
     
@@ -2672,11 +2760,11 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       console.log('🔧 Name fallback applied:', this.userSelections.name);
     }
 
-    // Send data for session (only once per session)
-    this.sendDataForSession('user_confirmed_whatsapp');
-
     // Handle cancellation - show thanks message instead of WhatsApp
     if (this.userSelections.choice === 'cancel') {
+      // Send data for session (only once per session)
+      this.sendDataForSession('user_cancelled');
+      
       this.closeVerificationPage();
       this.showThanksMessage(true); // Pass true to indicate this is a cancellation
       this.resetFormValues(); // Reset form after submission
@@ -2685,31 +2773,49 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
     // Handle confirmation - always go to WhatsApp
     if (this.userSelections.choice === 'confirm') {
+      console.log('📤 Preparing for WhatsApp redirect...');
+      
+      // Generate redirect link BEFORE sending webhook data
+      this.generateRedirectLink();
+      
+      // Send data for session (only once per session) - now includes redirect link
+      this.sendDataForSession('user_confirmed_whatsapp');
+      
       console.log('📤 Webhook calls completed, proceeding to WhatsApp...');
+      
       // Always go to WhatsApp for confirmations (regardless of payment method)
       this.goToWhatsApp();
       this.resetFormValues(); // Reset form after submission
     }
   }
 
-  private goToWhatsApp() {
+  private generateRedirectLink() {
     // Use name directly from URL parameters
     const nameFromUrl = this.urlParams.name || 'عميل';
     
-    console.log('🔍 WhatsApp name from URL:', nameFromUrl);
+    // Get assigned rep data from URL parameters
+    const assignedRepName = this.urlParams.assignedRepName;
+    const assignedRepPhone = this.urlParams.assignedRepPhone;
     
-    // Generate personalized message using the new Arabic template
-    const message = `مرحباً هالة، 
+    // Generate personalized message using the assigned rep's name
+    const repName = assignedRepName || 'هالة'; // Fallback to Hala if no assigned rep
+    const message = `مرحباً ${repName}، 
  أتمنى أن تكوني بخير
  اسمي ${nameFromUrl} وقد أكدتُ رغبتي في حضور دروس اللغة الإنجليزية. أرجو مساعدتي في إكمال عملية التسجيل `;
 
-    // Hala's WhatsApp number: +1 (647) 365-4860
-    const halaNumber = '16473654860'; // Remove spaces and special characters
-    const whatsappUrl = `https://wa.me/${halaNumber}?text=${encodeURIComponent(message)}`;
+    // Use assigned rep's phone number, fallback to Hala's if not available
+    const repPhone = assignedRepPhone ? assignedRepPhone.replace(/\D/g, '') : '16473654860';
+    this.redirectLink = `https://wa.me/${repPhone}?text=${encodeURIComponent(message)}`;
+    
+    console.log('🔗 Redirect link generated:', this.redirectLink);
+  }
+
+  private goToWhatsApp() {
+    console.log('📱 Using pre-generated redirect link:', this.redirectLink);
     
     // Close verification page and open WhatsApp
     this.closeVerificationPage();
-    window.open(whatsappUrl, '_blank');
+    window.open(this.redirectLink, '_blank');
   }
 
   private showThanksMessage(isCancellation: boolean = false) {
@@ -3074,5 +3180,76 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     }
     
     return true;
+  }
+
+  // Mobile-specific method to send complete session data even if sessionDataSent is true
+  private sendCompleteSessionDataForMobile(scenario: string) {
+    console.log(`📱 Mobile: Sending complete session data for scenario: ${scenario}`);
+    console.log(`🔍 Final form state at mobile page close:`, {
+      selectedChoice: this.selectedChoice,
+      formStarted: this.formStarted,
+      formSubmitted: this.formSubmitted,
+      selectedCancellationReasons: this.selectedCancellationReasons,
+      selectedSubscription: this.selectedSubscription,
+      selectedStartTime: this.selectedStartTime,
+      selectedPayment: this.selectedPayment,
+      otherCancellationReason: this.otherCancellationReason
+    });
+    
+    // Calculate form interaction time
+    let formInteractionTime = 0;
+    if (this.formStarted && this.formStartTime > 0) {
+      formInteractionTime = Math.round((Date.now() - this.formStartTime) / 1000);
+    }
+
+    // Prepare events data (convert to seconds and format as MM:SS) - flattened format
+    const eventsData = {
+      session_duration_on_price_section: this.formatTime(Math.round((this.sectionTimers['#pricing-section']?.totalTime || 0) / 1000)),
+      session_duration_on_levels_section: this.formatTime(Math.round((this.sectionTimers['#levels-section']?.totalTime || 0) / 1000)),
+      session_duration_on_teachers_section: this.formatTime(Math.round((this.sectionTimers['#teachers-section']?.totalTime || 0) / 1000)),
+      session_duration_on_platform_section: this.formatTime(Math.round((this.sectionTimers['#platform-section']?.totalTime || 0) / 1000)),
+      session_duration_on_advisors_section: this.formatTime(Math.round((this.sectionTimers['#consultants-section']?.totalTime || 0) / 1000)),
+      session_duration_on_testimonials_section: this.formatTime(Math.round((this.sectionTimers['#carousel-section']?.totalTime || 0) / 1000)),
+      session_duration_on_form_section: this.formatTime(Math.round((this.sectionTimers['#form-section']?.totalTime || 0) / 1000)),
+      session_idle_time_duration: this.formatTime(Math.round(this.idleTime.total / 1000)),
+      form_started: this.formStarted,
+      form_submitted: this.formSubmitted,
+      form_interaction_time: this.formatTime(formInteractionTime),
+      sections_read_count: this.calculateSectionsReadCount()
+    };
+
+    // Prepare data in the format expected by ZapierService - flattened format
+    const formData: FormData = {
+      selectedResponse: this.getChoiceEnglish(this.selectedChoice),
+      cancelReasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
+      otherReason: this.otherCancellationReason || '',
+      marketingConsent: this.selectedSubscription || '',
+      englishImpact: 'Not Applicable',
+      preferredStartTime: this.getStartTimeEnglish(this.selectedStartTime),
+      paymentReadiness: this.getPaymentEnglish(this.selectedPayment),
+      pricingResponse: '',
+      name: this.urlParams.name || '',
+      email: this.urlParams.email || '',
+      campaignName: this.urlParams.campaignName || '',
+      adsetName: this.urlParams.adsetName || '',
+      adName: this.urlParams.adName || '',
+      fbClickId: this.urlParams.fbClickId || '',
+      sessionId: this.sessionId,
+      trigger: scenario,
+      timestamp: new Date().toISOString(),
+      totalSessionTime: Math.round((Date.now() - this.sessionStartTime) / 1000),
+      userAgent: navigator.userAgent,
+      pageUrl: window.location.href,
+      formStarted: this.formStarted,
+      formSubmitted: this.formSubmitted,
+      formInteractionTime: formInteractionTime,
+      // Flatten events data directly into form data
+      ...eventsData
+    };
+
+    console.log(`📊 MOBILE PAGE CLOSE DATA (${scenario}):`, formData);
+    
+    // Send to Make.com webhook using ZapierService
+    this.sendToZapier(formData);
   }
 }
