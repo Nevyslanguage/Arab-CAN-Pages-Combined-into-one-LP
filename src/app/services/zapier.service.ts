@@ -407,7 +407,7 @@ export class ZapierService {
         assigned_rep_name: formData.assignedRepName || '',
         assigned_rep_phone: formData.assignedRepPhone || '',
         assigned_to: formData.assignedTo || '',
-        redirect_link: formData.redirectLink || '',
+        // redirect_link: formData.redirectLink || '',
         session_id: formData.sessionId || '',
         trigger: formData.trigger || '',
         total_session_time: this.formatTime(formData.totalSessionTime || 0),

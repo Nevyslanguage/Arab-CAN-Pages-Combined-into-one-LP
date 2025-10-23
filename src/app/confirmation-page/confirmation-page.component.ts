@@ -1452,7 +1452,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       assigned_rep_name: this.urlParams.assignedRepName,
       assigned_rep_phone: this.urlParams.assignedRepPhone,
       assigned_to: this.urlParams.assignedRepName || '',
-      redirect_link: this.redirectLink || '',
+      // redirect_link: this.redirectLink || '',
       
       // Campaign tracking data
       campaign_name: this.urlParams.campaignName,
