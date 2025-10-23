@@ -32,6 +32,7 @@ export interface FormData {
   formSubmitted?: boolean;
   formInteractionTime?: number;
   description?: string;
+  decisionJourney?: string;
   // Flattened analytics fields (formatted as MM:SS strings)
   session_duration_on_price_section?: string;
   session_duration_on_levels_section?: string;
@@ -518,6 +519,13 @@ export class ZapierService {
   // Format form data into a readable
   private formatFormDataForDescription(formData: FormData): string {
     let description = `Confirmation Page Form Submission Details\n\n`;
+    
+    // Decision journey section (if available)
+    if (formData.decisionJourney) {
+      description += `Decision Journey: ${formData.decisionJourney}\n\n`;
+    } else if (formData.description && formData.description.includes('User started')) {
+      description += `Decision Journey: ${formData.description.split('\n')[0]}\n\n`;
+    }
     
     // Form responses section
     description += `Response: ${formData.selectedResponse}\n`;

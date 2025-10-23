@@ -73,6 +73,16 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   private formSubmitted: boolean = false;
   private formStartTime: number = 0;
   
+  // Decision change tracking
+  private initialChoice: string = '';
+  private decisionChanged: boolean = false;
+  private timeOnCancelPath: number = 0;
+  private timeOnConfirmPath: number = 0;
+  private cancelPathStartTime: number = 0;
+  private confirmPathStartTime: number = 0;
+  private decisionHistory: Array<{choice: string; timestamp: number}> = [];
+  private decisionChangeCount: number = 0;
+  
   // URL parameters from leadform
   private urlParams: {
     email?: string;
@@ -142,8 +152,72 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   private sessionDataSent: boolean = false;
   showThankYouScreen: boolean = false;
 
+  // Method to finalize decision tracking and get decision journey description
+  private getDecisionJourneyDescription(): string {
+    const currentTime = Date.now();
+    
+    // Finalize time tracking for current path
+    if (this.selectedChoice === 'cancel' && this.cancelPathStartTime > 0) {
+      this.timeOnCancelPath += currentTime - this.cancelPathStartTime;
+    }
+    if (this.selectedChoice === 'confirm' && this.confirmPathStartTime > 0) {
+      this.timeOnConfirmPath += currentTime - this.confirmPathStartTime;
+    }
+    
+    // Generate decision journey description
+    if (!this.decisionChanged) {
+      // No decision changes - single decision
+      const finalChoice = this.getChoiceEnglish(this.selectedChoice);
+      return `User made single decision: ${finalChoice}. No decision changes.`;
+    } else {
+      // Decision changed - show only initial and final
+      const initialChoiceText = this.getChoiceEnglish(this.initialChoice);
+      const finalChoiceText = this.getChoiceEnglish(this.selectedChoice);
+      const timeOnCancel = this.formatTime(Math.round(this.timeOnCancelPath / 1000));
+      const timeOnConfirm = this.formatTime(Math.round(this.timeOnConfirmPath / 1000));
+      
+      return `User started ${initialChoiceText.toLowerCase()}, switched to ${finalChoiceText.toLowerCase()}, spent ${timeOnCancel} on cancellation path, ${timeOnConfirm} on confirmation path.
+      \n Final decision: ${finalChoiceText}`;
+    }
+  }
+
 
   onChoiceChange(choice: string) {
+    const currentTime = Date.now();
+    
+    // Track decision changes and history
+    if (!this.initialChoice) {
+      // First choice - record as initial choice
+      this.initialChoice = choice;
+      this.decisionHistory.push({choice: choice, timestamp: currentTime});
+      console.log('🎯 Initial choice recorded:', choice);
+    } else if (this.initialChoice !== choice) {
+      // User changed their decision
+      this.decisionChanged = true;
+      this.decisionChangeCount++;
+      this.decisionHistory.push({choice: choice, timestamp: currentTime});
+      console.log('🔄 Decision changed from', this.initialChoice, 'to', choice, `(Change #${this.decisionChangeCount})`);
+    }
+    
+    // Track time spent on each path
+    
+    // Stop timer for previous path and start timer for new path
+    if (this.selectedChoice === 'cancel' && this.cancelPathStartTime > 0) {
+      this.timeOnCancelPath += currentTime - this.cancelPathStartTime;
+      this.cancelPathStartTime = 0;
+    }
+    if (this.selectedChoice === 'confirm' && this.confirmPathStartTime > 0) {
+      this.timeOnConfirmPath += currentTime - this.confirmPathStartTime;
+      this.confirmPathStartTime = 0;
+    }
+    
+    // Start timer for new path
+    if (choice === 'cancel') {
+      this.cancelPathStartTime = currentTime;
+    } else if (choice === 'confirm') {
+      this.confirmPathStartTime = currentTime;
+    }
+    
     this.selectedChoice = choice;
     
     // Track when user starts filling the form
@@ -997,6 +1071,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // Capture any form selections the user made before leaving
     const userSelections = this.captureUserSelections();
     
+    // Get decision journey description
+    const decisionJourney = this.getDecisionJourneyDescription();
+    
     // Prepare data for ZapierService with user selections - flattened format
     const formData: FormData = {
       selectedResponse: userSelections.selectedResponse,
@@ -1022,6 +1099,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
       formInteractionTime: formInteractionTime,
+      decisionJourney: decisionJourney, // Include decision journey as separate field
       description: this.formatAwayAnalyticsDescription(eventsData, timeAwaySeconds, userSelections),
       // Flatten events data directly into form data
       ...eventsData
@@ -1108,6 +1186,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // Capture any form selections the user made before leaving
     const userSelections = this.captureUserSelections();
     
+    // Get decision journey description
+    const decisionJourney = this.getDecisionJourneyDescription();
+    
     // Prepare data with captured user selections - flattened format
     const formData = {
       selectedResponse: userSelections.selectedResponse,
@@ -1133,6 +1214,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
       formInteractionTime: formInteractionTime,
+      decisionJourney: decisionJourney, // Include decision journey as separate field
       description: this.formatAwayAnalyticsDescription(eventsData, timeAwaySeconds, this.captureUserSelections()),
       // Flatten events data directly into form data
       ...eventsData
@@ -1547,6 +1629,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         sections_read_count: this.calculateSectionsReadCount()
       };
 
+      // Get decision journey description
+      const decisionJourney = this.getDecisionJourneyDescription();
+      
       // Prepare form data in the successful format with analytics - flattened format
       const formData: FormData = {
         selectedResponse: this.getChoiceEnglish(this.selectedChoice),
@@ -1577,6 +1662,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
         formStarted: this.formStarted,
         formSubmitted: this.formSubmitted,
         formInteractionTime: formInteractionTime,
+        decisionJourney: decisionJourney, // Include decision journey as separate field
         // Flatten events data directly into form data
         ...eventsData
       };
@@ -1685,6 +1771,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       sections_read_count: this.calculateSectionsReadCount()
     };
 
+    // Get decision journey description
+    const decisionJourney = this.getDecisionJourneyDescription();
+    
     // Prepare data in the format expected by ZapierService - flattened format
     const formData: FormData = {
       selectedResponse: this.getChoiceEnglish(this.selectedChoice),
@@ -1710,6 +1799,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
       formInteractionTime: formInteractionTime,
+      decisionJourney: decisionJourney, // Include decision journey as separate field
       // Flatten events data directly into form data
       ...eventsData
     };
@@ -1769,6 +1859,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       sections_read_count: this.calculateSectionsReadCount()
     };
 
+    // Get decision journey description
+    const decisionJourney = this.getDecisionJourneyDescription();
+    
     // Prepare minimal data for no-interaction scenario - flattened format
     const formData: FormData = {
       selectedResponse: '', // Empty for no interaction
@@ -1794,6 +1887,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
       formInteractionTime: formInteractionTime,
+      decisionJourney: decisionJourney, // Include decision journey as separate field
       // Flatten events data directly into form data
       ...eventsData
     };
@@ -1839,6 +1933,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       selectedResponse = 'Confirm Interest';
     }
 
+    // Get decision journey description
+    const decisionJourney = this.getDecisionJourneyDescription();
+    
     // Prepare partial form data - flattened format
     const formData: FormData = {
       selectedResponse: selectedResponse,
@@ -1864,6 +1961,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
       formInteractionTime: formInteractionTime,
+      decisionJourney: decisionJourney, // Include decision journey as separate field
       // Flatten events data directly into form data
       ...eventsData
     };
@@ -3218,6 +3316,9 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       sections_read_count: this.calculateSectionsReadCount()
     };
 
+    // Get decision journey description
+    const decisionJourney = this.getDecisionJourneyDescription();
+    
     // Prepare data in the format expected by ZapierService - flattened format
     const formData: FormData = {
       selectedResponse: this.getChoiceEnglish(this.selectedChoice),
@@ -3243,6 +3344,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
       formInteractionTime: formInteractionTime,
+      decisionJourney: decisionJourney, // Include decision journey as separate field
       // Flatten events data directly into form data
       ...eventsData
     };
