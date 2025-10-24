@@ -111,8 +111,26 @@ export class ZapierService {
     return rep;
   }
 
+  // Check if running on localhost to disable data sending
+  private isLocalhost(): boolean {
+    return window.location.hostname === 'localhost' || 
+           window.location.hostname === '127.0.0.1' || 
+           window.location.hostname === '0.0.0.0' ||
+           window.location.hostname.includes('localhost');
+  }
+
   // Send lead form data to Zapier webhook
   async sendLeadFormToZapier(leadFormData: LeadFormData): Promise<{ response: any; assignedRep: { name: string; phone: string } }> {
+    // Skip sending data on localhost
+    if (this.isLocalhost()) {
+      console.log('🚫 LOCALHOST DETECTED: Skipping data send to Make.com for localhost development');
+      console.log('📊 Lead form data that would have been sent:', leadFormData);
+      
+      // Still return assigned rep for UI purposes
+      const assignedRep = this.getNextSalesRep();
+      return { response: 'localhost-skip', assignedRep };
+    }
+
     try {
       // Assign sales rep using round-robin
       const assignedRep = this.getNextSalesRep();
@@ -248,6 +266,13 @@ export class ZapierService {
 
   // Send form data to Zapier webhook
   async sendToZapier(formData: FormData): Promise<any> {
+    // Skip sending data on localhost
+    if (this.isLocalhost()) {
+      console.log('🚫 LOCALHOST DETECTED: Skipping data send to Make.com for localhost development');
+      console.log('📊 Form data that would have been sent:', formData);
+      return 'localhost-skip';
+    }
+
     try {
       // Create URL parameters for the webhook
       const params = new URLSearchParams();

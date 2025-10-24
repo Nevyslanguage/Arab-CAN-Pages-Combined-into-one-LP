@@ -14,6 +14,14 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   // Development flag to disable Zapier calls during development
   private readonly isDevelopment = false; // Disabled to allow localhost testing
   
+  // Check if running on localhost to disable data sending
+  private isLocalhost(): boolean {
+    return window.location.hostname === 'localhost' || 
+           window.location.hostname === '127.0.0.1' || 
+           window.location.hostname === '0.0.0.0' ||
+           window.location.hostname.includes('localhost');
+  }
+  
   constructor(private zapierService: ZapierService) {}
   selectedChoice: string = '';
   currentSlide: number = 0;
@@ -21,6 +29,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   
   // Form selections
   selectedCancellationReasons: string[] = [];
+  selectedCancellationReason: string = '';
   selectedSubscription: string = '';
   selectedStartTime: string = '';
   selectedPayment: string = '';
@@ -130,6 +139,73 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     name: ''
   };
 
+  // Incentive system
+  showIncentive: boolean = false;
+  currentIncentive: any = null;
+  incentiveResponse: string = '';
+  incentiveData: any = {
+    'price': {
+      reason: 'السعر مرتفع جدًا بالنسبة لي',
+      incentive: 'عرض خاص: خصم 10% ساري لمدة 3 أشهر! 🎉',
+      incentiveDetails: 'للطلاب الجدد فقط - ينتهي العرض خلال 3 أيام',
+      question: 'هل أنت مهتم؟',
+      responses: [
+        { value: 'interested', text: 'أنا مهتم بهذا العرض، أريد التسجيل والبدء' },
+        { value: 'not_interested', text: 'لا، شكرًا، نراكم في المرة القادمة' }
+      ]
+    },
+    'timing': {
+      reason: 'وقتي لا يسمح لي بحضور الدروس ولا أعرف متى سيتغير ذلك',
+      incentive: 'نيفيز مرنة للغاية:',
+      incentiveDetails: 'الدروس متاحة يوميًا، من الساعة 8 صباحًا حتى 11 مساءً - هل لديك وقت كافي الآن؟\n\nلا تفكر كثيراً. إن التفكير الزائد سم قاتل ببطء، وعواقبه حتمية ودائمًا ما تكون غير سارة.\n\nيمكنك البدء بثلاث ساعات فقط من الدروس أسبوعيًا بأي وقت يناسبك.\n\nمع ذلك، إذا لم يكن لديك الوقت الكافي لأخذ الدروس بانتظام، فننصحك بالانتظار. قد لا يكون هذا هو الوقت المناسب لهذه الخطوة.',
+      question: 'ما رأيك؟',
+      responses: [
+        { value: 'interested', text: 'أنا مهتم، أريد التسجيل والبدء!' },
+        { value: 'not_interested', text: 'ليس لدي وقت كافٍ، شكرًا لك، ولكن ليس الآن.' }
+      ]
+    },
+    'schedule': {
+      reason: 'جدول أعمالي الحالي لا يسمح لي بحضور الدروس (كنت أستعلم فقط)',
+      incentive: 'نيفيز مرنة للغاية:',
+      incentiveDetails: 'الدروس متاحة يوميًا، من الساعة 8 صباحًا حتى 11 مساءً - هل لديك وقت كافي الآن؟\n\nلا تفكر كثيراً. إن التفكير الزائد سم قاتل ببطء، وعواقبه حتمية ودائمًا ما تكون غير سارة.\n\nيمكنك البدء بثلاث ساعات فقط من الدروس أسبوعيًا بأي وقت يناسبك.\n\nمع ذلك، إذا لم يكن لديك الوقت الكافي لأخذ الدروس بانتظام، فننصحك بالانتظار. قد لا يكون هذا هو الوقت المناسب لهذه الخطوة.',
+      question: 'ما رأيك؟',
+      responses: [
+        { value: 'interested', text: 'أنا مهتم، أريد التسجيل والبدء!' },
+        { value: 'not_interested', text: 'ليس لدي وقت كافٍ، شكرًا لك، ولكن ليس الآن.' }
+      ]
+    },
+    'payment': {
+      reason: 'أشك في موثوقية المؤسسة الإلكترونية للدفع بالبطاقة',
+      incentive: 'نتفهم قلقك تمامًا.',
+      incentiveDetails: 'مع ذلك، كن مطمئنًا: لا داعي للقلق. نحن شركة معروفة ونقدم لك خيارين:\n\n1. مقابلة وكلائنا لطرح جميع أسئلتك من خلال مكالمة فيديو.\n2. الاستفادة من حساب مجاني على موقعنا! وستتمكن من الوصول إلى جميع تسجيلات الدروس ومشاهدة الدروس المباشرة لتأكيد مصداقيتنا. 🎓',
+      question: 'هل أنت مقتنع؟',
+      responses: [
+        { value: 'interested', text: 'نعم، أنا مهتم، أريد التحدث مع وكلائكم.' },
+        { value: 'not_interested', text: 'لا، شكرًا، هذا لا يناسبني.' }
+      ]
+    },
+    'prefer-inperson': {
+      reason: 'أُفضّل الدروس الحضورية',
+      incentive: 'جاء إلينا الكثيرون ممن يفضلون حضور الدروس الحضورية...',
+      incentiveDetails: 'ولكن بعد تجربة أسلوبنا وطريقة عملنا، فهم يستمتعون بدروسنا!\n\nننصح بشدة بتجربة الدروس عبر الإنترنت، لأنها فعّالة حقًا! ستوفر الوقت والمال.\n\nإذا كنت تعتقد أنك ستشعر بالملل، ففكّر مرة أخرى! دروسنا تُشكّل مجتمعًا حقيقيًا.\n\nوإذا كنت ترغب في التواصل، فلا تتردد في دعوة زملائك في المدينة. ☕',
+      question: 'هل أنت مهتم؟',
+      responses: [
+        { value: 'interested', text: 'نعم، أنا مهتم، سأجرب الدروس عبر الإنترنت.' },
+        { value: 'not_interested', text: 'لا، شكرًا، لم أقتنع بعد.' }
+      ]
+    },
+    'not-ready': {
+      reason: 'لا أريد البدء الآن',
+      incentive: 'لا مشكلة!',
+      incentiveDetails: 'املأ نموذج التسجيل للتحدث مع وكلائنا وأخبرنا متى ستكون مستعدًا للبدء، وسنحدد موعدًا لذلك.',
+      question: 'هل يناسبك هذا؟',
+      responses: [
+        { value: 'interested', text: 'نعم، أنا مهتم، أريد ملء النموذج.' },
+        { value: 'not_interested', text: 'لا، شكرًا.' }
+      ]
+    }
+  };
+
   // Validation properties
   showValidationError: boolean = false;
   validationMessage: string = '';
@@ -170,14 +246,19 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       const finalChoice = this.getChoiceEnglish(this.selectedChoice);
       return `User made single decision: ${finalChoice}. No decision changes.`;
     } else {
-      // Decision changed - show only initial and final
-      const initialChoiceText = this.getChoiceEnglish(this.initialChoice);
-      const finalChoiceText = this.getChoiceEnglish(this.selectedChoice);
+      // Decision changed - show all choices in the journey
       const timeOnCancel = this.formatTime(Math.round(this.timeOnCancelPath / 1000));
       const timeOnConfirm = this.formatTime(Math.round(this.timeOnConfirmPath / 1000));
       
-      return `User started ${initialChoiceText.toLowerCase()}, switched to ${finalChoiceText.toLowerCase()}, spent ${timeOnCancel} on cancellation path, ${timeOnConfirm} on confirmation path.
-      \n Final decision: ${finalChoiceText}`;
+      // Build the journey description showing all choices
+      let journeyDescription = `User decision journey: `;
+      const choiceTexts = this.decisionHistory.map(entry => this.getChoiceEnglish(entry.choice));
+      journeyDescription += choiceTexts.join(' → ');
+      
+      journeyDescription += `\nTime spent: ${timeOnCancel} on cancellation path, ${timeOnConfirm} on confirmation path.`;
+      journeyDescription += `\nFinal decision: ${this.getChoiceEnglish(this.selectedChoice)}`;
+      
+      return journeyDescription;
     }
   }
 
@@ -191,12 +272,16 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       this.initialChoice = choice;
       this.decisionHistory.push({choice: choice, timestamp: currentTime});
       console.log('🎯 Initial choice recorded:', choice);
-    } else if (this.initialChoice !== choice) {
-      // User changed their decision
-      this.decisionChanged = true;
-      this.decisionChangeCount++;
-      this.decisionHistory.push({choice: choice, timestamp: currentTime});
-      console.log('🔄 Decision changed from', this.initialChoice, 'to', choice, `(Change #${this.decisionChangeCount})`);
+    } else {
+      // Check if this is a different choice from the previous one
+      const previousChoice = this.decisionHistory[this.decisionHistory.length - 1]?.choice;
+      if (previousChoice !== choice) {
+        // User changed their decision
+        this.decisionChanged = true;
+        this.decisionChangeCount++;
+        this.decisionHistory.push({choice: choice, timestamp: currentTime});
+        console.log('🔄 Decision changed from', previousChoice, 'to', choice, `(Change #${this.decisionChangeCount})`);
+      }
     }
     
     // Track time spent on each path
@@ -259,14 +344,14 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // Validate based on choice
     if (this.selectedChoice === 'cancel') {
       console.log('🎯 Direct cancellation flow - selectedChoice is cancel');
-      // For cancellation, require at least one cancellation reason
-      if (this.selectedCancellationReasons.length === 0) {
-        this.showValidationErrorModal('يرجى اختيار سبب واحد على الأقل للإلغاء');
+      // For cancellation, require one cancellation reason
+      if (!this.selectedCancellationReason) {
+        this.showValidationErrorModal('يرجى اختيار سبب الإلغاء');
         return;
       }
       
       // If "other reason" is selected, require text input
-      if (this.selectedCancellationReasons.includes('other') && (!this.otherCancellationReason || this.otherCancellationReason.trim() === '')) {
+      if (this.selectedCancellationReason === 'other' && (!this.otherCancellationReason || this.otherCancellationReason.trim() === '')) {
         this.showValidationErrorModal('يرجى كتابة السبب الآخر');
         return;
       }
@@ -299,7 +384,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       // For confirmations, collect all user selections
       this.userSelections = {
         choice: this.selectedChoice,
-        cancellationReasons: this.selectedCancellationReasons,
+        cancellationReasons: this.selectedCancellationReason ? [this.selectedCancellationReason] : [],
         subscription: this.selectedSubscription,
         startTime: this.selectedStartTime,
         payment: this.selectedPayment,
@@ -1016,6 +1101,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   private async sendAwayAnalytics(timeAwaySeconds: number) {
     console.log('🚀 sendAwayAnalytics called - User was away for', timeAwaySeconds, 'seconds (90+ second threshold)');
     
+    // Skip sending data on localhost
+    if (this.isLocalhost()) {
+      console.log('🚫 LOCALHOST DETECTED: Skipping away analytics send to Make.com for localhost development');
+      console.log('📊 Away analytics data that would have been sent for time away:', timeAwaySeconds, 'seconds');
+      return;
+    }
+    
     // Check if data has already been sent for this session
     if (this.sessionDataSent) {
       console.log(`⚠️ Data already sent for this session - skipping away analytics`);
@@ -1124,11 +1216,12 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   private captureUserSelections() {
     console.log('📝 Capturing user selections before leaving:', {
       selectedChoice: this.selectedChoice,
-      selectedCancellationReasons: this.selectedCancellationReasons,
+      selectedCancellationReason: this.selectedCancellationReason,
       selectedSubscription: this.selectedSubscription,
       selectedStartTime: this.selectedStartTime,
       selectedPayment: this.selectedPayment,
-      otherCancellationReason: this.otherCancellationReason
+      otherCancellationReason: this.otherCancellationReason,
+      incentiveResponse: this.incentiveResponse
     });
 
     // Determine the response type based on what was selected
@@ -1141,18 +1234,27 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
     return {
       selectedResponse: selectedResponse,
-      cancelReasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
+      cancelReasons: this.selectedCancellationReason ? [this.getCancellationReasonEnglish(this.selectedCancellationReason)] : [],
       otherReason: this.otherCancellationReason || '',
       marketingConsent: this.selectedSubscription || '',
       preferredStartTime: this.getStartTimeEnglish(this.selectedStartTime),
       paymentReadiness: this.getPaymentEnglish(this.selectedPayment),
-      pricingResponse: this.selectedPlan || ''
+      pricingResponse: this.selectedPlan || '',
+      incentiveResponse: this.incentiveResponse || '',
+      incentiveReason: this.selectedCancellationReason || ''
     };
   }
 
   // Mobile-friendly method using sendBeacon (works even when page is backgrounded)
   private async sendMobileAwayData(timeAwaySeconds: number) {
     console.log('📱 Mobile: sendMobileAwayData called - User was away for', timeAwaySeconds, 'seconds');
+    
+    // Skip sending data on localhost
+    if (this.isLocalhost()) {
+      console.log('🚫 LOCALHOST DETECTED: Skipping mobile away analytics send to Make.com for localhost development');
+      console.log('📊 Mobile away analytics data that would have been sent for time away:', timeAwaySeconds, 'seconds');
+      return;
+    }
     
     // Check if data has already been sent for this session
     if (this.sessionDataSent) {
@@ -1409,8 +1511,8 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       }
     } else {
       // Fallback to current form state
-      if (this.selectedCancellationReasons.length > 0) {
-        description += `Cancellation Reasons: ${this.getCancellationReasonsEnglish(this.selectedCancellationReasons).join(', ')}\n`;
+      if (this.selectedCancellationReason) {
+        description += `Cancellation Reasons: ${this.getCancellationReasonEnglish(this.selectedCancellationReason)}\n`;
       }
       
       if (this.otherCancellationReason) {
@@ -1544,7 +1646,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       
       // Confirmation page data - use current form state, not userSelections
       confirmation_choice: this.getChoiceEnglish(this.selectedChoice),
-      cancellation_reasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
+      cancellation_reasons: this.selectedCancellationReason ? [this.getCancellationReasonEnglish(this.selectedCancellationReason)] : [],
       other_reason: this.otherCancellationReason || '',
       subscription_preference: this.selectedSubscription,
       preferred_start_time: this.getStartTimeEnglish(this.selectedStartTime),
@@ -1635,7 +1737,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       // Prepare form data in the successful format with analytics - flattened format
       const formData: FormData = {
         selectedResponse: this.getChoiceEnglish(this.selectedChoice),
-        cancelReasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
+        cancelReasons: this.selectedCancellationReason ? [this.getCancellationReasonEnglish(this.selectedCancellationReason)] : [],
         otherReason: this.otherCancellationReason || undefined, // Include custom reason text
         marketingConsent: this.selectedSubscription,
         englishImpact: 'Not Applicable', // This form doesn't have English impact question
@@ -1694,6 +1796,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
   // Send data using ZapierService (confirmation page data)
   private async sendToZapier(data: any) {
+    // Skip sending data on localhost
+    if (this.isLocalhost()) {
+      console.log('🚫 LOCALHOST DETECTED: Skipping data send to Make.com for localhost development');
+      console.log('📊 Data that would have been sent:', data);
+      return;
+    }
+
     try {
       // Data is already in the correct FormData format from sendDataForSession methods
       // No need to convert - just pass it directly to ZapierService
@@ -1728,7 +1837,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       selectedChoice: this.selectedChoice,
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
-      selectedCancellationReasons: this.selectedCancellationReasons,
+      selectedCancellationReason: this.selectedCancellationReason,
       selectedSubscription: this.selectedSubscription,
       selectedStartTime: this.selectedStartTime,
       selectedPayment: this.selectedPayment,
@@ -1777,7 +1886,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // Prepare data in the format expected by ZapierService - flattened format
     const formData: FormData = {
       selectedResponse: this.getChoiceEnglish(this.selectedChoice),
-      cancelReasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
+      cancelReasons: this.selectedCancellationReason ? [this.getCancellationReasonEnglish(this.selectedCancellationReason)] : [],
       otherReason: this.otherCancellationReason || '',
       marketingConsent: this.selectedSubscription || '',
       englishImpact: 'Not Applicable',
@@ -1823,7 +1932,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     console.log(`📊 SCENARIO DATA (${scenario}):`, formData);
     console.log(`🔍 Current form state:`, {
       selectedChoice: this.selectedChoice,
-      selectedCancellationReasons: this.selectedCancellationReasons,
+      selectedCancellationReason: this.selectedCancellationReason,
       selectedSubscription: this.selectedSubscription,
       selectedStartTime: this.selectedStartTime,
       selectedPayment: this.selectedPayment,
@@ -1939,7 +2048,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // Prepare partial form data - flattened format
     const formData: FormData = {
       selectedResponse: selectedResponse,
-      cancelReasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
+      cancelReasons: this.selectedCancellationReason ? [this.getCancellationReasonEnglish(this.selectedCancellationReason)] : [],
       otherReason: this.otherCancellationReason || '',
       marketingConsent: this.selectedSubscription || '',
       englishImpact: 'Not Applicable',
@@ -2021,7 +2130,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       
       // User choice data
       selected_choice: this.selectedChoice,
-      cancellation_reasons: this.selectedCancellationReasons,
+      cancellation_reasons: this.selectedCancellationReason ? [this.selectedCancellationReason] : [],
       subscription_preference: this.selectedSubscription,
       preferred_start_time: this.selectedStartTime,
       payment_method_available: this.selectedPayment
@@ -2072,7 +2181,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       choice: this.selectedChoice,
       
       // Detailed responses
-      cancellation_reasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
+      cancellation_reasons: this.selectedCancellationReason ? [this.getCancellationReasonEnglish(this.selectedCancellationReason)] : [],
       subscription_opt_in: this.selectedSubscription,
       preferred_start_time: this.getStartTimeEnglish(this.selectedStartTime),
       payment_method_available: this.getPaymentEnglish(this.selectedPayment),
@@ -2231,6 +2340,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   }
 
   private async sendToZapierWithService(zapierData: any) {
+    // Skip sending data on localhost
+    if (this.isLocalhost()) {
+      console.log('🚫 LOCALHOST DETECTED: Skipping sendToZapierWithService send to Make.com for localhost development');
+      console.log('📊 Zapier data that would have been sent:', zapierData);
+      return;
+    }
+
     try {
       // Convert the zapierData to the format expected by ZapierService
       const formData = {
@@ -2457,32 +2573,71 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     console.log('Image dimensions:', event.target.naturalWidth, 'x', event.target.naturalHeight);
   }
 
-  // Checkbox handling
-  onCancellationReasonChange(reason: string, isChecked: boolean) {
-    console.log('🔍 onCancellationReasonChange called:', { reason, isChecked, formStarted: this.formStarted });
-    
-    if (isChecked) {
-      this.selectedCancellationReasons.push(reason);
-    } else {
-      this.selectedCancellationReasons = this.selectedCancellationReasons.filter(r => r !== reason);
-    }
+  // Radio button handling for cancellation reasons
+  onCancellationReasonChange() {
+    console.log('🔍 onCancellationReasonChange called:', { selectedReason: this.selectedCancellationReason, formStarted: this.formStarted });
     
     // Track when user starts filling the form
     if (!this.formStarted) {
       this.formStarted = true;
       this.formStartTime = Date.now();
-      console.log('📝 Form started - User selected cancellation reason:', reason, 'at:', new Date(this.formStartTime));
+      console.log('📝 Form started - User selected cancellation reason:', this.selectedCancellationReason, 'at:', new Date(this.formStartTime));
     }
     
+    // Show incentive for the selected reason
+    this.showIncentiveForReason(this.selectedCancellationReason);
+    
     console.log('🔍 Form state after cancellation reason change:', {
-      selectedCancellationReasons: this.selectedCancellationReasons,
+      selectedCancellationReason: this.selectedCancellationReason,
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted
     });
   }
 
-  isCancellationReasonSelected(reason: string): boolean {
-    return this.selectedCancellationReasons.includes(reason);
+  // Show incentive for selected cancellation reason
+  showIncentiveForReason(reason: string) {
+    // First, hide any existing incentive
+    this.showIncentive = false;
+    this.currentIncentive = null;
+    this.incentiveResponse = '';
+    
+    // Then show the new incentive if it exists
+    if (this.incentiveData[reason]) {
+      this.currentIncentive = this.incentiveData[reason];
+      this.showIncentive = true;
+      this.incentiveResponse = ''; // Reset response
+      console.log('🎯 Showing incentive for reason:', reason, this.currentIncentive);
+    } else {
+      console.log('🎯 No incentive data for reason:', reason);
+    }
+  }
+
+  // Handle incentive response
+  onIncentiveResponse(response: string) {
+    this.incentiveResponse = response;
+    console.log('🎯 Incentive response selected:', response);
+    
+    if (response === 'interested') {
+      // User is interested - show confirmation fields
+      console.log('🎯 User is interested - showing confirmation fields');
+      this.selectedChoice = 'confirm'; // Set to confirm to show confirmation fields
+      this.onChoiceChange('confirm');
+      this.closeIncentive(); // Close incentive after switching to confirm
+    } else {
+      // User is not interested - just hide the incentive and let them continue with cancel flow
+      console.log('🎯 User is not interested - hiding incentive, continuing with cancel flow');
+      this.closeIncentive();
+      // Keep the cancel choice and let them continue with subscription question
+      // The cancel button will be enabled after they complete the subscription question
+    }
+  }
+
+  // Close incentive modal
+  closeIncentive() {
+    this.showIncentive = false;
+    this.currentIncentive = null;
+    this.incentiveResponse = '';
+    console.log('🎯 Incentive modal closed');
   }
 
   // Radio button handling
@@ -2996,6 +3151,23 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     return choices[choice] || choice;
   }
 
+  getCancellationReasonEnglish(reason: string): string {
+    const reasonMap: { [key: string]: string } = {
+      'price': 'Price is too high',
+      'timing': 'Timing is not suitable',
+      'schedule': 'My schedule does not allow',
+      'payment': 'Doubts about payment security',
+      'prefer-inperson': 'I prefer in-person lessons',
+      'not-ready': 'I don\'t want to start now',
+      'other': 'Other reason'
+    };
+    
+    if (reason === 'other' && this.otherCancellationReason && this.otherCancellationReason.trim()) {
+      return `Other reason: ${this.otherCancellationReason.trim()}`;
+    }
+    return reasonMap[reason] || reason;
+  }
+
   getCancellationReasonsEnglish(reasons: string[]): string[] {
     const reasonMap: { [key: string]: string } = {
       'price': 'Price is too high',
@@ -3003,6 +3175,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       'schedule': 'My schedule does not allow',
       'payment': 'Doubts about payment security',
       'prefer-inperson': 'I prefer in-person lessons',
+      'not-ready': 'I don\'t want to start now',
       'other': 'Other reason'
     };
     
@@ -3118,6 +3291,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   private resetFormValues() {
     this.selectedChoice = '';
     this.selectedCancellationReasons = [];
+    this.selectedCancellationReason = '';
     this.selectedSubscription = '';
     this.selectedStartTime = '';
     this.selectedPayment = '';
@@ -3245,7 +3419,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       
       // User choice data (if any)
       selected_choice: this.selectedChoice || 'no_choice',
-      cancellation_reasons: this.selectedCancellationReasons,
+      cancellation_reasons: this.selectedCancellationReason ? [this.selectedCancellationReason] : [],
       subscription_preference: this.selectedSubscription,
       preferred_start_time: this.selectedStartTime,
       payment_method_available: this.selectedPayment,
@@ -3262,13 +3436,13 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
   // Validation method for cancel form
   isCancelFormValid(): boolean {
-    // Check if at least one cancellation reason is selected
-    if (this.selectedCancellationReasons.length === 0) {
+    // Check if one cancellation reason is selected
+    if (!this.selectedCancellationReason) {
       return false;
     }
     
     // If "other reason" is selected, require text input
-    if (this.selectedCancellationReasons.includes('other') && (!this.otherCancellationReason || this.otherCancellationReason.trim() === '')) {
+    if (this.selectedCancellationReason === 'other' && (!this.otherCancellationReason || this.otherCancellationReason.trim() === '')) {
       return false;
     }
     
@@ -3282,12 +3456,19 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
   // Mobile-specific method to send complete session data even if sessionDataSent is true
   private sendCompleteSessionDataForMobile(scenario: string) {
+    // Skip sending data on localhost
+    if (this.isLocalhost()) {
+      console.log('🚫 LOCALHOST DETECTED: Skipping mobile complete session data send to Make.com for localhost development');
+      console.log('📊 Mobile complete session data that would have been sent for scenario:', scenario);
+      return;
+    }
+
     console.log(`📱 Mobile: Sending complete session data for scenario: ${scenario}`);
     console.log(`🔍 Final form state at mobile page close:`, {
       selectedChoice: this.selectedChoice,
       formStarted: this.formStarted,
       formSubmitted: this.formSubmitted,
-      selectedCancellationReasons: this.selectedCancellationReasons,
+      selectedCancellationReason: this.selectedCancellationReason,
       selectedSubscription: this.selectedSubscription,
       selectedStartTime: this.selectedStartTime,
       selectedPayment: this.selectedPayment,
@@ -3322,7 +3503,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
     // Prepare data in the format expected by ZapierService - flattened format
     const formData: FormData = {
       selectedResponse: this.getChoiceEnglish(this.selectedChoice),
-      cancelReasons: this.getCancellationReasonsEnglish(this.selectedCancellationReasons),
+      cancelReasons: this.selectedCancellationReason ? [this.getCancellationReasonEnglish(this.selectedCancellationReason)] : [],
       otherReason: this.otherCancellationReason || '',
       marketingConsent: this.selectedSubscription || '',
       englishImpact: 'Not Applicable',

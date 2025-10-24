@@ -327,48 +327,54 @@
           <!-- Cancel Form (shown when cancel is selected) -->
           <div *ngIf="selectedChoice === 'cancel'" class="space-y-6 mt-8">
             <h4 class="text-xl font-semibold text-gray-800">يرجى إبلاغنا بسبب الإلغاء...*</h4>
-            <p class="text-gray-600">يرجى اختيار جميع الأسباب التي تنطبق عليك.</p>
+            <p class="text-gray-600">يرجى اختيار السبب الذي ينطبق عليك.</p>
             
             <div class="space-y-1">
               <label class="flex items-center space-x-3 space-x-reverse cursor-pointer p-3 rounded-lg border border-gray-300 shadow-sm transition-all duration-200 hover:bg-gray-50"
-                     [style.background-color]="isCancellationReasonSelected('price') ? '#054e6d' : 'white'">
-                <input type="checkbox" class="w-5 h-5 rounded border-2 border-gray-300" style="accent-color: #054e6d;"
-                       #priceCheckbox (change)="onCancellationReasonChange('price', priceCheckbox.checked)">
-                <span class="text-base" [class.text-white]="isCancellationReasonSelected('price')" [class.text-gray-800]="!isCancellationReasonSelected('price')">السعر مرتفع جداً بالنسبة لي</span>
+                     [style.background-color]="selectedCancellationReason === 'price' ? '#054e6d' : 'white'">
+                <input type="radio" name="cancellationReason" class="w-5 h-5" style="accent-color: #054e6d;"
+                       value="price" [(ngModel)]="selectedCancellationReason" (ngModelChange)="onCancellationReasonChange()">
+                <span class="text-base" [class.text-white]="selectedCancellationReason === 'price'" [class.text-gray-800]="selectedCancellationReason !== 'price'">السعر مرتفع جدًا بالنسبة لي</span>
               </label>
               <label class="flex items-center space-x-3 space-x-reverse cursor-pointer p-3 rounded-lg border border-gray-300 shadow-sm transition-all duration-200 hover:bg-gray-50"
-                     [style.background-color]="isCancellationReasonSelected('timing') ? '#054e6d' : 'white'">
-                <input type="checkbox" class="w-5 h-5 rounded border-2 border-gray-300" style="accent-color: #054e6d;"
-                       #timingCheckbox (change)="onCancellationReasonChange('timing', timingCheckbox.checked)">
-                <span class="text-base" [class.text-white]="isCancellationReasonSelected('timing')" [class.text-gray-800]="!isCancellationReasonSelected('timing')">الجداول الزمنية غير مناسبة لي</span>
+                     [style.background-color]="selectedCancellationReason === 'timing' ? '#054e6d' : 'white'">
+                <input type="radio" name="cancellationReason" class="w-5 h-5" style="accent-color: #054e6d;"
+                       value="timing" [(ngModel)]="selectedCancellationReason" (ngModelChange)="onCancellationReasonChange()">
+                <span class="text-base" [class.text-white]="selectedCancellationReason === 'timing'" [class.text-gray-800]="selectedCancellationReason !== 'timing'">وقتي لا يسمح لي بحضور الدروس ولا أعرف متى سيتغير ذلك</span>
               </label>
+              <!-- <label class="flex items-start space-x-3 space-x-reverse cursor-pointer p-3 rounded-lg border border-gray-300 shadow-sm transition-all duration-200 hover:bg-gray-50"
+                     [style.background-color]="selectedCancellationReason === 'schedule' ? '#054e6d' : 'white'">
+                <input type="radio" name="cancellationReason" class="w-5 h-5 flex-shrink-0 mt-0.5" style="accent-color: #054e6d;"
+                       value="schedule" [(ngModel)]="selectedCancellationReason" (ngModelChange)="onCancellationReasonChange()">
+                <span class="text-base flex-1" [class.text-white]="selectedCancellationReason === 'schedule'" [class.text-gray-800]="selectedCancellationReason !== 'schedule'">جدول أعمالي الحالي لا يسمح لي بحضور الدروس (كنت أستعلم فقط)</span>
+              </label> -->
               <label class="flex items-start space-x-3 space-x-reverse cursor-pointer p-3 rounded-lg border border-gray-300 shadow-sm transition-all duration-200 hover:bg-gray-50"
-                     [style.background-color]="isCancellationReasonSelected('schedule') ? '#054e6d' : 'white'">
-                <input type="checkbox" class="w-5 h-5 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5" style="accent-color: #054e6d;"
-                       #scheduleCheckbox (change)="onCancellationReasonChange('schedule', scheduleCheckbox.checked)">
-                <span class="text-base flex-1" [class.text-white]="isCancellationReasonSelected('schedule')" [class.text-gray-800]="!isCancellationReasonSelected('schedule')">جدول أعمالي الحالي لا يسمح لي بحضور الدروس (كنت أستعلم فقط)</span>
-              </label>
-              <label class="flex items-start space-x-3 space-x-reverse cursor-pointer p-3 rounded-lg border border-gray-300 shadow-sm transition-all duration-200 hover:bg-gray-50"
-                     [style.background-color]="isCancellationReasonSelected('payment') ? '#054e6d' : 'white'">
-                <input type="checkbox" class="w-5 h-5 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5" style="accent-color: #054e6d;"
-                       #paymentCheckbox (change)="onCancellationReasonChange('payment', paymentCheckbox.checked)">
-                <span class="text-base flex-1" [class.text-white]="isCancellationReasonSelected('payment')" [class.text-gray-800]="!isCancellationReasonSelected('payment')">لدي شكوك بشأن أمان وموثوقية الدفع الإلكتروني بالبطاقة لدى المؤسسة</span>
+                     [style.background-color]="selectedCancellationReason === 'payment' ? '#054e6d' : 'white'">
+                <input type="radio" name="cancellationReason" class="w-5 h-5 flex-shrink-0 mt-0.5" style="accent-color: #054e6d;"
+                       value="payment" [(ngModel)]="selectedCancellationReason" (ngModelChange)="onCancellationReasonChange()">
+                <span class="text-base flex-1" [class.text-white]="selectedCancellationReason === 'payment'" [class.text-gray-800]="selectedCancellationReason !== 'payment'">أشك في موثوقية المؤسسة الإلكترونية للدفع بالبطاقة</span>
               </label>
               <label class="flex items-center space-x-3 space-x-reverse cursor-pointer p-3 rounded-lg border border-gray-300 shadow-sm transition-all duration-200 hover:bg-gray-50"
-                     [style.background-color]="isCancellationReasonSelected('prefer-inperson') ? '#054e6d' : 'white'">
-                <input type="checkbox" class="w-5 h-5 rounded border-2 border-gray-300" style="accent-color: #054e6d;"
-                       #preferInpersonCheckbox (change)="onCancellationReasonChange('prefer-inperson', preferInpersonCheckbox.checked)">
-                <span class="text-base" [class.text-white]="isCancellationReasonSelected('prefer-inperson')" [class.text-gray-800]="!isCancellationReasonSelected('prefer-inperson')">أفضل الدروس الحضورية</span>
+                     [style.background-color]="selectedCancellationReason === 'prefer-inperson' ? '#054e6d' : 'white'">
+                <input type="radio" name="cancellationReason" class="w-5 h-5" style="accent-color: #054e6d;"
+                       value="prefer-inperson" [(ngModel)]="selectedCancellationReason" (ngModelChange)="onCancellationReasonChange()">
+                <span class="text-base" [class.text-white]="selectedCancellationReason === 'prefer-inperson'" [class.text-gray-800]="selectedCancellationReason !== 'prefer-inperson'">أُفضّل الدروس الحضورية</span>
               </label>
               <label class="flex items-center space-x-3 space-x-reverse cursor-pointer p-3 rounded-lg border border-gray-300 shadow-sm transition-all duration-200 hover:bg-gray-50"
-                     [style.background-color]="isCancellationReasonSelected('other') ? '#054e6d' : 'white'">
-                <input type="checkbox" class="w-5 h-5 rounded border-2 border-gray-300" style="accent-color: #054e6d;"
-                       #otherCheckbox (change)="onCancellationReasonChange('other', otherCheckbox.checked)">
-                <span class="text-base" [class.text-white]="isCancellationReasonSelected('other')" [class.text-gray-800]="!isCancellationReasonSelected('other')">سبب آخر غير المذكور أعلاه</span>
+                     [style.background-color]="selectedCancellationReason === 'not-ready' ? '#054e6d' : 'white'">
+                <input type="radio" name="cancellationReason" class="w-5 h-5" style="accent-color: #054e6d;"
+                       value="not-ready" [(ngModel)]="selectedCancellationReason" (ngModelChange)="onCancellationReasonChange()">
+                <span class="text-base" [class.text-white]="selectedCancellationReason === 'not-ready'" [class.text-gray-800]="selectedCancellationReason !== 'not-ready'">لا أريد البدء الآن</span>
+              </label>
+              <label class="flex items-center space-x-3 space-x-reverse cursor-pointer p-3 rounded-lg border border-gray-300 shadow-sm transition-all duration-200 hover:bg-gray-50"
+                     [style.background-color]="selectedCancellationReason === 'other' ? '#054e6d' : 'white'">
+                <input type="radio" name="cancellationReason" class="w-5 h-5" style="accent-color: #054e6d;"
+                       value="other" [(ngModel)]="selectedCancellationReason" (ngModelChange)="onCancellationReasonChange()">
+                <span class="text-base" [class.text-white]="selectedCancellationReason === 'other'" [class.text-gray-800]="selectedCancellationReason !== 'other'">سبب آخر غير المذكور أعلاه</span>
               </label>
               
               <!-- Other reason text input -->
-              <div *ngIf="isCancellationReasonSelected('other')" class="mt-3 p-3 bg-gray-50 rounded-lg">
+              <div *ngIf="selectedCancellationReason === 'other'" class="mt-3 p-3 bg-gray-50 rounded-lg">
                 <label class="block text-sm font-medium text-gray-700 mb-2">أدخل السبب:</label>
                 <input type="text" 
                        name="otherCancellationReason"
@@ -377,6 +383,32 @@
                        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200"
                        placeholder="اكتب السبب هنا..."
                        dir="rtl">
+              </div>
+            </div>
+
+            <!-- Incentive Section (Inline) -->
+            <div *ngIf="showIncentive && currentIncentive" class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <!-- Incentive Solution -->
+              <div class="text-center mb-6">
+                <!-- <div class="text-4xl mb-4">🎉</div> -->
+                <h3 class="text-xl font-bold text-gray-800 mb-2">{{ currentIncentive.incentive }}</h3>
+                <p class="text-gray-600 whitespace-pre-line">{{ currentIncentive.incentiveDetails }}</p>
+              </div>
+
+              <!-- Question -->
+              <div class="text-center mb-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ currentIncentive.question }}</h3>
+                
+                <!-- Response Options -->
+                <div class="space-y-3 max-w-md mx-auto">
+                  <button *ngFor="let response of currentIncentive.responses" 
+                          (click)="onIncentiveResponse(response.value)"
+                          [class]="incentiveResponse === response.value ? 
+                            'w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 border-2 border-teal-600' : 
+                            'w-full bg-white text-gray-700 font-semibold py-4 px-8 rounded-xl shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-300 border-2 border-gray-300 hover:border-teal-400 hover:text-teal-700'">
+                    {{ response.text }}
+                  </button>
+                </div>
               </div>
             </div>
             
