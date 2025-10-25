@@ -251,7 +251,7 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
       const timeOnConfirm = this.formatTime(Math.round(this.timeOnConfirmPath / 1000));
       
       // Build the journey description showing all choices
-      let journeyDescription = `User decision journey: `;
+      let journeyDescription = ``;
       const choiceTexts = this.decisionHistory.map(entry => this.getChoiceEnglish(entry.choice));
       journeyDescription += choiceTexts.join(' → ');
       
@@ -1101,11 +1101,10 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   private async sendAwayAnalytics(timeAwaySeconds: number) {
     console.log('🚀 sendAwayAnalytics called - User was away for', timeAwaySeconds, 'seconds (90+ second threshold)');
     
-    // Skip sending data on localhost
+    // LOCALHOST TESTING ENABLED - Sending data to Make.com
     if (this.isLocalhost()) {
-      console.log('🚫 LOCALHOST DETECTED: Skipping away analytics send to Make.com for localhost development');
-      console.log('📊 Away analytics data that would have been sent for time away:', timeAwaySeconds, 'seconds');
-      return;
+      console.log('🚀 LOCALHOST TESTING: Sending away analytics to Make.com for localhost development');
+      console.log('📊 Away analytics data being sent for time away:', timeAwaySeconds, 'seconds');
     }
     
     // Check if data has already been sent for this session
@@ -1249,11 +1248,10 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   private async sendMobileAwayData(timeAwaySeconds: number) {
     console.log('📱 Mobile: sendMobileAwayData called - User was away for', timeAwaySeconds, 'seconds');
     
-    // Skip sending data on localhost
+    // LOCALHOST TESTING ENABLED - Sending data to Make.com
     if (this.isLocalhost()) {
-      console.log('🚫 LOCALHOST DETECTED: Skipping mobile away analytics send to Make.com for localhost development');
-      console.log('📊 Mobile away analytics data that would have been sent for time away:', timeAwaySeconds, 'seconds');
-      return;
+      console.log('🚀 LOCALHOST TESTING: Sending mobile away analytics to Make.com for localhost development');
+      console.log('📊 Mobile away analytics data being sent for time away:', timeAwaySeconds, 'seconds');
     }
     
     // Check if data has already been sent for this session
@@ -1796,11 +1794,10 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
   // Send data using ZapierService (confirmation page data)
   private async sendToZapier(data: any) {
-    // Skip sending data on localhost
+    // LOCALHOST TESTING ENABLED - Sending data to Make.com
     if (this.isLocalhost()) {
-      console.log('🚫 LOCALHOST DETECTED: Skipping data send to Make.com for localhost development');
-      console.log('📊 Data that would have been sent:', data);
-      return;
+      console.log('🚀 LOCALHOST TESTING: Sending data to Make.com for localhost development');
+      console.log('📊 Data being sent:', data);
     }
 
     try {
@@ -2340,11 +2337,10 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
   }
 
   private async sendToZapierWithService(zapierData: any) {
-    // Skip sending data on localhost
+    // LOCALHOST TESTING ENABLED - Sending data to Make.com
     if (this.isLocalhost()) {
-      console.log('🚫 LOCALHOST DETECTED: Skipping sendToZapierWithService send to Make.com for localhost development');
-      console.log('📊 Zapier data that would have been sent:', zapierData);
-      return;
+      console.log('🚀 LOCALHOST TESTING: Sending data via ZapierService to Make.com for localhost development');
+      console.log('📊 Zapier data being sent:', zapierData);
     }
 
     try {
@@ -3456,11 +3452,10 @@ export class ConfirmationPageComponent implements OnInit, OnDestroy {
 
   // Mobile-specific method to send complete session data even if sessionDataSent is true
   private sendCompleteSessionDataForMobile(scenario: string) {
-    // Skip sending data on localhost
+    // LOCALHOST TESTING ENABLED - Sending data to Make.com
     if (this.isLocalhost()) {
-      console.log('🚫 LOCALHOST DETECTED: Skipping mobile complete session data send to Make.com for localhost development');
-      console.log('📊 Mobile complete session data that would have been sent for scenario:', scenario);
-      return;
+      console.log('🚀 LOCALHOST TESTING: Sending mobile complete session data to Make.com for localhost development');
+      console.log('📊 Mobile complete session data being sent for scenario:', scenario);
     }
 
     console.log(`📱 Mobile: Sending complete session data for scenario: ${scenario}`);
